@@ -28,15 +28,22 @@ from weather import (
 # ---------------------------------------------------------------
 # Load the C++ physics engine
 # ---------------------------------------------------------------
-ENGINE_PATH = str(Path(__file__).resolve().parent.parent / "cpp-engine" / "build")
-sys.path.insert(0, ENGINE_PATH)
+ENGINE_ROOT = Path(__file__).resolve().parent.parent / "cpp-engine" / "build"
+ENGINE_PATHS = [ENGINE_ROOT]
+RELEASE_ENGINE_PATH = ENGINE_ROOT / "Release"
+if RELEASE_ENGINE_PATH.exists():
+    ENGINE_PATHS.append(RELEASE_ENGINE_PATH)
+
+for engine_path in ENGINE_PATHS:
+    sys.path.insert(0, str(engine_path))
 
 try:
     import physics_engine as pe  # type: ignore
     ENGINE_AVAILABLE = True
 except ImportError:
     ENGINE_AVAILABLE = False
-    print(f"⚠️  C++ physics engine not found at {ENGINE_PATH}. "
+    checked_paths = ", ".join(str(p) for p in ENGINE_PATHS)
+    print(f"⚠️  C++ physics engine not found. Checked: {checked_paths}. "
           "POST /simulate will be unavailable.")
 
 # ---------------------------------------------------------------
