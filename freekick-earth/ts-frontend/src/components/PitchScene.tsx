@@ -186,43 +186,16 @@ function CameraController({ position, target, instant = false, disabled = false 
 
 const SoccerBall = forwardRef<THREE.Mesh, any>((props, ref) => {
   const texture = useMemo(() => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 512
-    canvas.height = 256
-    const ctx = canvas.getContext('2d')
-    if (ctx) {
-      ctx.fillStyle = 'white'
-      ctx.fillRect(0, 0, 512, 256)
-      ctx.fillStyle = '#111'
-      
-      for (let i = 0; i < 10; i++) {
-        for (let j = 0; j < 6; j++) {
-          if ((i + j) % 2 === 0) {
-            ctx.beginPath()
-            const cx = i * 51.2 + 25.6
-            const cy = j * 42.6 + 21.3
-            const r = 18
-            for (let k = 0; k < 6; k++) {
-              const x = cx + r * Math.cos(k * Math.PI / 3)
-              const y = cy + r * Math.sin(k * Math.PI / 3)
-              if (k === 0) ctx.moveTo(x, y)
-              else ctx.lineTo(x, y)
-            }
-            ctx.fill()
-          }
-        }
-      }
-    }
-    const tex = new THREE.CanvasTexture(canvas)
-    tex.wrapS = THREE.RepeatWrapping
-    tex.wrapT = THREE.RepeatWrapping
+    const loader = new THREE.TextureLoader()
+    const tex = loader.load('/jabulani.png')
+    tex.colorSpace = THREE.SRGBColorSpace
     return tex
   }, [])
 
   return (
     <mesh ref={ref} {...props} castShadow>
       <sphereGeometry args={[0.11, 32, 32]} />
-      <meshStandardMaterial map={texture} roughness={0.6} metalness={0.1} />
+      <meshStandardMaterial map={texture} roughness={0.4} metalness={0.1} />
     </mesh>
   )
 })
