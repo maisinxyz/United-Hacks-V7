@@ -47,6 +47,7 @@ export default function PitchScene({
   onTrajectoryComplete,
 }: Props) {
   const ballRef = useRef<THREE.Mesh>(null!)
+  const [triggerRecenter, setTriggerRecenter] = useState(0)
   
   return (
     <div className="pitch-scene-wrapper">
@@ -63,6 +64,7 @@ export default function PitchScene({
           target={camera.target} 
           position={camera.position} 
           instant={instantCamera} 
+          triggerRecenter={triggerRecenter}
         />
 
         <ambientLight intensity={0.6} />
@@ -132,6 +134,17 @@ export default function PitchScene({
 
       {dimmed && <div className="scene-dim" />}
 
+      {stepIndex >= 0 && stepIndex <= 3 && (
+        <button 
+          className="wizard-btn secondary"
+          style={{ position: 'absolute', bottom: '30px', left: '30px', zIndex: 100, pointerEvents: 'auto', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(8px)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+          onClick={() => setTriggerRecenter(t => t + 1)}
+        >
+          <span style={{ marginRight: '8px' }}>🎯</span>
+          Recenter
+        </button>
+      )}
+
       {resultVisible && result && (
         <div
           className="result-badge"
@@ -146,7 +159,7 @@ export default function PitchScene({
   )
 }
 
-function CameraController({ position, target, instant = false }: { position: [number, number, number]; target: [number, number, number]; instant?: boolean }) {
+function CameraController({ position, target, instant = false, triggerRecenter = 0 }: { position: [number, number, number]; target: [number, number, number]; instant?: boolean; triggerRecenter?: number }) {
   const controlsRef = useRef<any>(null)
 
   useEffect(() => {
@@ -157,7 +170,7 @@ function CameraController({ position, target, instant = false }: { position: [nu
         !instant
       )
     }
-  }, [position, target, instant])
+  }, [position, target, instant, triggerRecenter])
 
   return (
     <CameraControls 
