@@ -160,8 +160,12 @@ std::vector<BallState> simulate_trajectory(const KickParams& kick,
 
     // State machine
     bool is_rolling = false;
+    bool entered_goal_mouth = false;
 
     for (int i = 0; i < MAX_FRAMES; ++i) {
+        double prev_z = state.position.z;
+        double prev_y = state.position.y;
+        double prev_x = state.position.x;
         if (!is_rolling) {
             // Airborne physics
             SimState current{state.position, state.velocity};
@@ -187,49 +191,78 @@ std::vector<BallState> simulate_trajectory(const KickParams& kick,
             }
         }
 
+        // Check entry into goal mouth
+        if (!entered_goal_mouth && prev_z < 27.0 && state.position.z >= 27.0) {
+            double fraction = (27.0 - prev_z) / (state.position.z - prev_z);
+            double cross_x = prev_x + (state.position.x - prev_x) * fraction;
+            double cross_y = prev_y + (state.position.y - prev_y) * fraction;
+            
+            if (cross_x >= -3.66 && cross_x <= 3.66 && cross_y <= 2.44) {
+                entered_goal_mouth = true;
+            }
+        }
+
         // Goal Net Collision Detection
-        // If the ball crosses the goal line (z >= 27.0) AND it went through the goal mouth
-        // (we assume if it is past 27 and within x/y bounds, it's in the net.
-        // We use generous outer bounds to prevent high-speed tunneling).
-        if (state.position.z > 27.0 && state.position.z < 35.0 && 
-            state.position.x > -4.5 && state.position.x < 4.5 && 
-            state.position.y < 3.0) {
-            
-            bool hit_net = false;
-            
-            // Check if it's roughly inside the goal mouth or already in the net
-            if (state.position.x >= -3.66 && state.position.x <= 3.66 && state.position.y <= 2.44) {
+        // Goal mouth is Z=27. Back net is Z=29. Left/Right = +/- 3.66. Top = 2.44.
+        if (state.position.z > 27.0 && state.position.z < 35.0) {
+            if (entered_goal_mouth) {
+                // Ball is INSIDE the net
+                bool hit_net = false;
                 
                 // Back net
                 if (state.position.z > 29.0 - 0.11) {
                     state.position.z = 29.0 - 0.11;
-                    if (state.velocity.z > 0) state.velocity.z = -state.velocity.z * 0.2;
+                    if (state.velocity.z > 0) state.velocity.z = 0.0;
                     hit_net = true;
                 }
                 // Left net
                 if (state.position.x < -3.66 + 0.11) {
                     state.position.x = -3.66 + 0.11;
-                    if (state.velocity.x < 0) state.velocity.x = -state.velocity.x * 0.2;
+                    if (state.velocity.x < 0) state.velocity.x = 0.0;
                     hit_net = true;
                 }
                 // Right net
                 if (state.position.x > 3.66 - 0.11) {
                     state.position.x = 3.66 - 0.11;
-                    if (state.velocity.x > 0) state.velocity.x = -state.velocity.x * 0.2;
+                    if (state.velocity.x > 0) state.velocity.x = 0.0;
                     hit_net = true;
                 }
                 // Top net
                 if (state.position.y > 2.44 - 0.11) {
                     state.position.y = 2.44 - 0.11;
-                    if (state.velocity.y > 0) state.velocity.y = -state.velocity.y * 0.2;
+                    if (state.velocity.y > 0) state.velocity.y = 0.0;
                     hit_net = true;
                 }
                 
                 if (hit_net) {
-                    // Net absorbs most energy
-                    state.velocity.x *= 0.5;
-                    state.velocity.y -= 2.0 * dt; // Gravity pulls it down faster
-                    state.angular_velocity = state.angular_velocity * 0.1; // kills spin
+                    // Net absorbs speed completely so it just drops
+                    state.velocity.x *= 0.1;
+                    state.velocity.y *= 0.1;
+                    state.velocity.z *= 0.1;
+                    state.angular_velocity = {0, 0, 0};
+                }
+            } else {
+                // Ball is OUTSIDE the net. Keep it outside.
+                // Check if it collides with the outer bounding box of the net
+                if (state.position.x > -3.66 - 0.11 && state.position.x < 3.66 + 0.11 &&
+                    state.position.y < 2.44 + 0.11 && state.position.z < 29.0 + 0.11) {
+                    
+                    // Simple outward push based on which face it most likely hit
+                    if (state.position.y >= 2.44) {
+                        state.position.y = 2.44 + 0.11;
+                        if (state.velocity.y < 0) state.velocity.y = -state.velocity.y * 0.3; // bounce off roof
+                        state.velocity.z *= 0.8; // friction
+                        state.velocity.x *= 0.8;
+                    } else if (state.position.x <= -3.66) {
+                        state.position.x = -3.66 - 0.11;
+                        if (state.velocity.x > 0) state.velocity.x = -state.velocity.x * 0.3;
+                    } else if (state.position.x >= 3.66) {
+                        state.position.x = 3.66 + 0.11;
+                        if (state.velocity.x < 0) state.velocity.x = -state.velocity.x * 0.3;
+                    } else if (state.position.z >= 29.0) {
+                        state.position.z = 29.0 + 0.11;
+                        if (state.velocity.z < 0) state.velocity.z = -state.velocity.z * 0.3;
+                    }
                 }
             }
         }

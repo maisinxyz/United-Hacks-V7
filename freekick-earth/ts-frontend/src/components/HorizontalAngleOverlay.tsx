@@ -57,7 +57,7 @@ export default function HorizontalAngleOverlay({ angle, onUpdate, onNext, onBack
   }
 
   return (
-    <div className="overlay-card frosted left-panel">
+    <div className="overlay-card frosted side-panel left-panel">
       <div className="step-header">
         <span className="step-number">03</span>
         <h2>Horizontal Aim</h2>

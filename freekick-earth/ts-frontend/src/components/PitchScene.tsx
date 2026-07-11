@@ -4,9 +4,9 @@
  * Renders pitch, goalposts, ball, trajectory, aim preview, and spin arrows.
  */
 
-import { useRef, useState, useMemo, useEffect } from 'react'
+import { useRef, useState, useMemo, useEffect, forwardRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Line, Text, Torus, OrbitControls } from '@react-three/drei'
+import { Line, Text, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { TrajectoryPoint } from '../api'
 import type { KickConfig } from './StepWizard'
@@ -19,6 +19,7 @@ export interface CameraConfig {
 interface Props {
   camera: CameraConfig
   trajectory?: TrajectoryPoint[]
+  previewTrajectory?: TrajectoryPoint[] | null
   ghostTrajectory?: TrajectoryPoint[]
   result?: string
   dimmed?: boolean
@@ -30,6 +31,7 @@ interface Props {
 export default function PitchScene({
   camera,
   trajectory,
+  previewTrajectory,
   ghostTrajectory,
   result,
   dimmed = false,
@@ -95,7 +97,20 @@ export default function PitchScene({
 
         {/* Live Spin Arrows for Spin (Step 4) */}
         {stepIndex === 4 && (
-          <SpinArrows config={config} />
+          <>
+            {previewTrajectory && previewTrajectory.length > 0 && (
+              <Line
+                points={previewTrajectory.map((p) => new THREE.Vector3(p.x, p.y, p.z))}
+                color="#f59e0b" // Glowing amber
+                lineWidth={3}
+                dashed
+                dashSize={0.5}
+                gapSize={0.2}
+                opacity={0.8}
+                transparent
+              />
+            )}
+          </>
         )}
 
         {/* Trajectory animation when available */}
@@ -157,13 +172,51 @@ function CameraController({ position, target, instant = false, disabled = false 
   return null
 }
 
-function StaticBall() {
+const SoccerBall = forwardRef<THREE.Mesh, any>((props, ref) => {
+  const texture = useMemo(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 512
+    canvas.height = 256
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      ctx.fillStyle = 'white'
+      ctx.fillRect(0, 0, 512, 256)
+      ctx.fillStyle = '#111'
+      
+      for (let i = 0; i < 10; i++) {
+        for (let j = 0; j < 6; j++) {
+          if ((i + j) % 2 === 0) {
+            ctx.beginPath()
+            const cx = i * 51.2 + 25.6
+            const cy = j * 42.6 + 21.3
+            const r = 18
+            for (let k = 0; k < 6; k++) {
+              const x = cx + r * Math.cos(k * Math.PI / 3)
+              const y = cy + r * Math.sin(k * Math.PI / 3)
+              if (k === 0) ctx.moveTo(x, y)
+              else ctx.lineTo(x, y)
+            }
+            ctx.fill()
+          }
+        }
+      }
+    }
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.wrapS = THREE.RepeatWrapping
+    tex.wrapT = THREE.RepeatWrapping
+    return tex
+  }, [])
+
   return (
-    <mesh position={[0, 0.11, 0]} castShadow>
-      <sphereGeometry args={[0.11, 24, 24]} />
-      <meshStandardMaterial color="white" roughness={0.3} metalness={0.1} />
+    <mesh ref={ref} {...props} castShadow>
+      <sphereGeometry args={[0.11, 32, 32]} />
+      <meshStandardMaterial map={texture} roughness={0.6} metalness={0.1} />
     </mesh>
   )
+})
+
+function StaticBall() {
+  return <SoccerBall position={[0, 0.11, 0]} />
 }
 
 // ---------------------------------------------------------------
@@ -194,45 +247,6 @@ function AimPreview({ config }: { config: KickConfig }) {
 // ---------------------------------------------------------------
 // Spin Arrows
 // ---------------------------------------------------------------
-function SpinArrows({ config }: { config: KickConfig }) {
-  // Use Torus to draw circular arrows around the ball
-  // Radius of ball is 0.11, so arrow radius is slightly larger
-  const R = 0.18
-  const maxSpin = 60
-  
-  // Calculate arc angle based on spin rate and axis weight
-  // If spinRate is 60 and axis is 1.0, arc is almost full circle (Math.PI * 1.8)
-  const baseArc = (config.spinRate / maxSpin) * Math.PI * 1.8
-
-  const arcX = baseArc * Math.abs(config.spinAxisX)
-  const arcY = baseArc * Math.abs(config.spinAxisY)
-  const arcZ = baseArc * Math.abs(config.spinAxisZ)
-
-  return (
-    <group position={[0, 0.11, 0]}>
-      {/* X Axis Spin (Topspin/Backspin) - rotates around X axis */}
-      {arcX > 0.1 && (
-        <group rotation={[0, 0, -Math.PI / 2]}>
-          <Torus args={[R, 0.015, 8, 32, arcX]} position={[0, 0, 0]} material-color="#ef4444" />
-        </group>
-      )}
-      {/* Y Axis Spin (Sidespin) - rotates around Y axis */}
-      {arcY > 0.1 && (
-        <group rotation={[Math.PI / 2, 0, 0]}>
-          <Torus args={[R, 0.015, 8, 32, arcY]} position={[0, 0, 0]} material-color="#22c55e" />
-        </group>
-      )}
-      {/* Z Axis Spin (Corkscrew) - rotates around Z axis */}
-      {arcZ > 0.1 && (
-        <group rotation={[0, 0, 0]}>
-          <Torus args={[R, 0.015, 8, 32, arcZ]} position={[0, 0, 0]} material-color="#3b82f6" />
-        </group>
-      )}
-    </group>
-  )
-}
-
-
 function Pitch() {
   return (
     <group>
@@ -426,10 +440,7 @@ function TrajectoryAnimation({ trajectory, ghostTrajectory }: { trajectory: Traj
 
   return (
     <group>
-      <mesh ref={ballRef} position={[trajectory[0].x, trajectory[0].y, trajectory[0].z]} castShadow>
-        <sphereGeometry args={[0.11, 24, 24]} />
-        <meshStandardMaterial color="white" roughness={0.3} metalness={0.1} />
-      </mesh>
+      <SoccerBall ref={ballRef} position={[trajectory[0].x, trajectory[0].y, trajectory[0].z]} />
       {trailPoints.length >= 2 && <Line points={trailPoints} color="#f59e0b" lineWidth={3} opacity={0.9} transparent />}
       {!animating && pathPoints.length >= 2 && <Line points={pathPoints} color="#f59e0b" lineWidth={1.5} opacity={0.4} transparent />}
       {ghostPoints.length >= 2 && <Line points={ghostPoints} color="#94a3b8" lineWidth={1.5} opacity={0.35} transparent dashed dashSize={0.3} gapSize={0.15} />}

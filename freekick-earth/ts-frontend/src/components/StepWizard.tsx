@@ -3,14 +3,14 @@
  * Determines which overlay to show and what camera position to pass to PitchScene.
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import StadiumOverlay from './StadiumOverlay'
 import PowerOverlay from './PowerOverlay'
 import HorizontalAngleOverlay from './HorizontalAngleOverlay'
 import VerticalAngleOverlay from './VerticalAngleOverlay'
-import SpinOverlay from './SpinOverlay'
+import CurveOverlay from './CurveOverlay'
 import PitchScene, { type CameraConfig } from './PitchScene'
-import { runSimulation, type SimulateResult, type StadiumConditions } from '../api'
+import { runSimulation, type SimulateResult, type StadiumConditions, type TrajectoryPoint } from '../api'
 
 export interface KickConfig {
   stadiumId: string
@@ -46,8 +46,8 @@ const CAMERA_CONFIGS: Record<number, CameraConfig> = {
   // H-Aim: High tactical angle from behind the ball looking towards the goal (avoids top-down singularity completely)
   2: { position: [0, 12, -8], target: [0, 0, 15] },      
   3: { position: [-15, 3, 13], target: [0, 1, 13] },     // V-Aim: side view
-  // Spin: camera is positioned to the right of the ball, looking straight ahead, so the ball appears purely on the left.
-  4: { position: [0.5, 0.5, -1.5], target: [0.5, 0.11, 0] }, 
+  // Spin: camera is directly behind the ball, looking towards the goal, so the ball is dead center.
+  4: { position: [0, 1.0, -2.5], target: [0, 0.11, 15] }, 
   5: { position: [0, 8, -12], target: [0, 2, 15] },      // Kick: cinematic behind view
 }
 
@@ -55,12 +55,43 @@ export default function StepWizard() {
   const [step, setStep] = useState(0)
   const [config, setConfig] = useState<KickConfig>(INITIAL_CONFIG)
   const [simResult, setSimResult] = useState<SimulateResult | null>(null)
+  const [previewTrajectory, setPreviewTrajectory] = useState<TrajectoryPoint[] | null>(null)
   const [loading, setLoading] = useState(false)
 
   const updateConfig = useCallback(
     (patch: Partial<KickConfig>) => setConfig((prev) => ({ ...prev, ...patch })),
     []
   )
+
+  // Live trajectory preview during Curve step
+  useEffect(() => {
+    if (step !== 4) return
+    
+    let isCancelled = false
+    const fetchPreview = async () => {
+      try {
+        const result = await runSimulation({
+          stadium_id: config.stadiumId,
+          power: config.power,
+          horizontal_angle: config.horizontalAngle,
+          vertical_angle: config.verticalAngle,
+          spin_rate: config.spinRate,
+          spin_axis_x: config.spinAxisX,
+          spin_axis_y: config.spinAxisY,
+          spin_axis_z: config.spinAxisZ,
+        })
+        if (!isCancelled) setPreviewTrajectory(result.trajectory)
+      } catch (e) {
+        console.error("Failed to get preview trajectory:", e)
+      }
+    }
+    
+    fetchPreview()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [step, config])
 
   const next = () => setStep((s) => Math.min(s + 1, STEP_COUNT - 1))
   const back = () => setStep((s) => Math.max(s - 1, 0))
@@ -102,6 +133,7 @@ export default function StepWizard() {
         <PitchScene
           camera={camera}
           trajectory={simResult?.trajectory}
+          previewTrajectory={previewTrajectory}
           ghostTrajectory={simResult?.ghost_trajectory}
           result={step === 5 ? simResult?.result : undefined}
           dimmed={isDimmed}
@@ -125,7 +157,7 @@ export default function StepWizard() {
           <VerticalAngleOverlay angle={config.verticalAngle} onUpdate={(a) => updateConfig({ verticalAngle: a })} onNext={next} onBack={back} />
         )}
         {step === 4 && (
-          <SpinOverlay config={config} onUpdate={updateConfig} onKick={handleKick} onBack={back} loading={loading} />
+          <CurveOverlay config={config} onUpdate={updateConfig} onKick={handleKick} onBack={back} loading={loading} />
         )}
         {step === 5 && simResult && (
           <div className="result-actions">

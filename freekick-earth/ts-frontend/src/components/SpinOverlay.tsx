@@ -73,7 +73,7 @@ export default function SpinOverlay({ config, onUpdate, onKick, onBack, loading 
   }
 
   return (
-    <div className="overlay-card frosted right-panel">
+    <div className="overlay-card frosted side-panel right-panel">
       <div className="step-header">
         <span className="step-number">05</span>
         <h2>Spin</h2>
