@@ -5,7 +5,7 @@
  */
 
 import { useRef, useState, useMemo, useEffect, forwardRef } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Canvas, useFrame } from '@react-three/fiber'
 import { Line, Text, CameraControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { TrajectoryPoint } from '../api'
@@ -540,8 +540,10 @@ function TrajectoryAnimation({
   const completedRef = useRef(false)
 
   const pathPoints = useMemo(() => trajectory.map((p) => new THREE.Vector3(p.x, p.y, p.z)), [trajectory])
+  const animatedTrajectory = useMemo(() => extendTrajectoryWithPhysics(trajectory), [trajectory])
+  const animatedPoints = useMemo(() => animatedTrajectory.map((p) => new THREE.Vector3(p.x, p.y, p.z)), [animatedTrajectory])
   const ghostPoints = useMemo(() => ghostTrajectory.map((p) => new THREE.Vector3(p.x, p.y, p.z)), [ghostTrajectory])
-  const trailPoints = useMemo(() => pathPoints.slice(0, frameIndex + 1), [pathPoints, frameIndex])
+  const trailPoints = useMemo(() => animatedPoints.slice(0, frameIndex + 1), [animatedPoints, frameIndex])
 
   useEffect(() => {
     setFrameIndex(0)
@@ -557,13 +559,22 @@ function TrajectoryAnimation({
   }, [animating, onComplete])
 
   useFrame(() => {
-    if (!animating || trajectory.length === 0) return
+    if (!animating || animatedTrajectory.length === 0) return
     const nextFrame = frameIndex + 1
-    if (nextFrame < trajectory.length) {
+    if (nextFrame < animatedTrajectory.length) {
       setFrameIndex(nextFrame)
       if (ballRef.current) {
-        const pt = trajectory[nextFrame]
+        const pt = animatedTrajectory[nextFrame]
+        const prev = animatedTrajectory[Math.max(0, nextFrame - 1)]
         ballRef.current.position.set(pt.x, pt.y, pt.z)
+        const dx = pt.x - prev.x
+        const dz = pt.z - prev.z
+        const horizontalDistance = Math.sqrt(dx * dx + dz * dz)
+        if (horizontalDistance > 0.0001) {
+          ballRef.current.rotation.x += dz / 0.11
+          ballRef.current.rotation.z -= dx / 0.11
+        }
+        ballRef.current.rotation.y += horizontalDistance * 0.15
       }
     } else {
       setAnimating(false)
@@ -574,12 +585,91 @@ function TrajectoryAnimation({
 
   return (
     <group>
-      <SoccerBall ref={ballRef} position={[trajectory[0].x, trajectory[0].y, trajectory[0].z]} />
+      <SoccerBall ref={ballRef} position={[animatedTrajectory[0].x, animatedTrajectory[0].y, animatedTrajectory[0].z]} />
       {trailPoints.length >= 2 && <Line points={trailPoints} color="#f59e0b" lineWidth={3} opacity={0.9} transparent />}
       {!animating && pathPoints.length >= 2 && <Line points={pathPoints} color="#f59e0b" lineWidth={1.5} opacity={0.4} transparent />}
       {ghostPoints.length >= 2 && <Line points={ghostPoints} color="#cbd5e1" lineWidth={2} opacity={0.5} transparent dashed dashSize={0.5} gapSize={0.2} />}
     </group>
   )
+}
+
+function extendTrajectoryWithPhysics(trajectory: TrajectoryPoint[]): TrajectoryPoint[] {
+  if (trajectory.length < 2) return trajectory
+
+  const groundY = 0.11
+  const gravity = 9.81
+  const restitution = 0.46
+  const bounceDamping = 0.86
+  const rollFriction = 1.9
+  const stopSpeed = 0.18
+  const step = 1 / 30
+  const maxExtraTime = 5.0
+
+  const points = trajectory.map((p) => ({ ...p }))
+  const prev = trajectory[trajectory.length - 2]
+  const last = trajectory[trajectory.length - 1]
+  const dt = Math.max(last.t - prev.t, step)
+
+  let x = last.x
+  let y = Math.max(last.y, groundY)
+  let z = last.z
+  let vx = (last.x - prev.x) / dt
+  let vy = (last.y - prev.y) / dt
+  let vz = (last.z - prev.z) / dt
+  let time = last.t
+  let rolling = false
+
+  for (let i = 0; i < Math.ceil(maxExtraTime / step); i++) {
+    time += step
+
+    if (!rolling) {
+      vy -= gravity * step
+      x += vx * step
+      y += vy * step
+      z += vz * step
+
+      if (y <= groundY) {
+        y = groundY
+        if (Math.abs(vy) < 1.1) {
+          rolling = true
+          vy = 0
+          vx *= bounceDamping
+          vz *= bounceDamping
+        } else {
+          vy = -vy * restitution
+          vx *= bounceDamping
+          vz *= bounceDamping
+        }
+      }
+    } else {
+      x += vx * step
+      z += vz * step
+      y = groundY
+
+      const horizontalSpeed = Math.sqrt(vx * vx + vz * vz)
+      if (horizontalSpeed < stopSpeed) {
+        points.push({ x: round3(x), y: groundY, z: round3(z), t: round3(time) })
+        break
+      }
+
+      const decay = Math.max(0, 1 - rollFriction * step)
+      vx *= decay
+      vz *= decay
+    }
+
+    points.push({ x: round3(x), y: round3(y), z: round3(z), t: round3(time) })
+
+    if (rolling) {
+      const horizontalSpeed = Math.sqrt(vx * vx + vz * vz)
+      if (horizontalSpeed < stopSpeed) break
+    }
+  }
+
+  return points
+}
+
+function round3(value: number) {
+  return Math.round(value * 1000) / 1000
 }
 
 export function StadiumShell() {
