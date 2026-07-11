@@ -4,11 +4,13 @@ FreeKick Earth — FastAPI Backend
 Endpoints:
   GET  /stadiums                 → list all available stadiums
   GET  /stadium/{id}/conditions  → weather + air density for a stadium
+  GET  /game/init                → randomly select stadium + generate conditions
   POST /simulate                 → run physics simulation, return trajectory
 """
 
 import json
 import math
+import random
 import sys
 import os
 from pathlib import Path
@@ -122,11 +124,17 @@ class TrajectoryPoint(BaseModel):
     t: float
 
 
+class GameInitResponse(BaseModel):
+    stadium: StadiumOut
+    conditions: ConditionsOut
+
+
 class SimulateResponse(BaseModel):
     trajectory: list[TrajectoryPoint]
     ghost_trajectory: list[TrajectoryPoint]  # baseline (sea-level, 15°C, no wind)
     conditions: ConditionsOut
-    result: str  # "goal" | "miss_high" | "miss_wide" | "miss_short"
+    result: str  # "goal" | "miss_high" | "miss_wide" | "miss_short" | "saved"
+    keeper_trajectory: list[TrajectoryPoint]  # goalkeeper dive path
 
 
 # ---------------------------------------------------------------
@@ -138,6 +146,14 @@ GOAL_HEIGHT = 2.44   # metres
 GOAL_DISTANCE = 27.0  # metres from kick spot
 
 BASELINE_DENSITY = 1.225  # sea-level, 15°C, dry air
+
+# Goalkeeper AI constants
+KEEPER_REACTION_TIME = 0.25  # seconds before keeper starts moving
+KEEPER_SPEED = 8.0           # m/s lateral movement speed
+KEEPER_REACH = 2.2           # m arm span + dive extension
+KEEPER_START_X = 0.0
+KEEPER_START_Y = 1.0         # standing height
+KEEPER_START_Z = 27.0        # on the goal line
 
 
 def _kick_to_velocity(power: float, h_angle_deg: float, v_angle_deg: float) -> tuple:
@@ -233,6 +249,67 @@ def _classify_result(trajectory: list[TrajectoryPoint]) -> str:
         return "miss_wide"
 
 
+def _calculate_keeper_trajectory(
+    trajectory: list[TrajectoryPoint],
+) -> tuple[list[TrajectoryPoint], bool]:
+    """Calculate the goalkeeper's dive path and whether they save the shot."""
+    # Find the crossing point
+    crossing_pt = None
+    t_cross = None
+    prev_pt = None
+    for pt in trajectory:
+        if prev_pt is not None and prev_pt.z < GOAL_DISTANCE and pt.z >= GOAL_DISTANCE:
+            fraction = (GOAL_DISTANCE - prev_pt.z) / (pt.z - prev_pt.z)
+            cross_x = prev_pt.x + fraction * (pt.x - prev_pt.x)
+            cross_y = prev_pt.y + fraction * (pt.y - prev_pt.y)
+            t_cross = prev_pt.t + fraction * (pt.t - prev_pt.t)
+            crossing_pt = (cross_x, cross_y)
+            break
+        prev_pt = pt
+
+    # Default: keeper stays put
+    keeper_start = TrajectoryPoint(
+        x=KEEPER_START_X, y=KEEPER_START_Y, z=KEEPER_START_Z, t=0.0
+    )
+
+    if crossing_pt is None or t_cross is None:
+        # Ball never reaches goal line — keeper stands still
+        return [keeper_start, keeper_start], False
+
+    cross_x, cross_y = crossing_pt
+    dx = cross_x - KEEPER_START_X
+    dy = cross_y - KEEPER_START_Y
+    distance = math.sqrt(dx * dx + dy * dy)
+
+    available_time = t_cross - KEEPER_REACTION_TIME
+    if available_time < 0:
+        available_time = 0
+
+    max_reachable = available_time * KEEPER_SPEED + KEEPER_REACH
+    saved = distance <= max_reachable
+
+    # Clamp dive target to max reachable distance
+    if distance > 0:
+        clamp_factor = min(1.0, max_reachable / distance)
+        target_x = KEEPER_START_X + dx * clamp_factor
+        target_y = KEEPER_START_Y + dy * clamp_factor
+    else:
+        target_x = KEEPER_START_X
+        target_y = KEEPER_START_Y
+
+    # Keeper starts moving after reaction time
+    dive_start_t = KEEPER_REACTION_TIME
+    dive_end_t = t_cross
+
+    keeper_path = [
+        TrajectoryPoint(x=KEEPER_START_X, y=KEEPER_START_Y, z=KEEPER_START_Z, t=0.0),
+        TrajectoryPoint(x=KEEPER_START_X, y=KEEPER_START_Y, z=KEEPER_START_Z, t=round(dive_start_t, 4)),
+        TrajectoryPoint(x=round(target_x, 4), y=round(target_y, 4), z=KEEPER_START_Z, t=round(dive_end_t, 4)),
+    ]
+
+    return keeper_path, saved
+
+
 # ---------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------
@@ -247,6 +324,42 @@ async def root():
 async def list_stadiums():
     """Return all available stadiums."""
     return [StadiumOut(**s) for s in STADIUMS_LIST]
+
+
+@app.get("/game/init", response_model=GameInitResponse)
+async def game_init():
+    """Randomly select a stadium and generate locale-bounded conditions."""
+    stadium_data = random.choice(STADIUMS_LIST)
+
+    # Generate randomized weather bounded by the stadium's climate ranges
+    temp_range = stadium_data.get("temp_range_c", [10, 30])
+    wind_range = stadium_data.get("wind_range_m_s", [0, 10])
+
+    temperature = round(random.uniform(temp_range[0], temp_range[1]), 1)
+    wind_speed = round(random.uniform(wind_range[0], wind_range[1]), 1)
+    wind_direction = round(random.uniform(0, 360), 1)
+    humidity = 50.0  # fixed
+
+    # Calculate pressure from altitude using ISA model
+    altitude = stadium_data["altitude_meters"]
+    estimated = estimate_conditions_from_altitude(altitude)
+    pressure = estimated.pressure_hpa
+
+    density = calculate_air_density(temperature, pressure, humidity)
+
+    stadium_out = StadiumOut(**stadium_data)
+    conditions = ConditionsOut(
+        stadium=stadium_out,
+        temperature_celsius=temperature,
+        pressure_hpa=round(pressure, 1),
+        humidity_percent=humidity,
+        wind_speed_m_s=wind_speed,
+        wind_direction_deg=wind_direction,
+        air_density=round(density, 4),
+        data_source="randomized",
+    )
+
+    return GameInitResponse(stadium=stadium_out, conditions=conditions)
 
 
 @app.get("/stadium/{stadium_id}/conditions", response_model=ConditionsOut)
@@ -324,9 +437,15 @@ async def simulate(req: SimulateRequest):
 
     result = _classify_result(actual)
 
+    # --- Goalkeeper AI ---
+    keeper_path, saved = _calculate_keeper_trajectory(actual)
+    if saved and result == "goal":
+        result = "saved"
+
     return SimulateResponse(
         trajectory=actual,
         ghost_trajectory=ghost,
         conditions=conditions,
         result=result,
+        keeper_trajectory=keeper_path,
     )

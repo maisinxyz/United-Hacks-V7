@@ -28,7 +28,7 @@ export interface StadiumConditions {
   wind_speed_m_s: number
   wind_direction_deg: number
   air_density: number
-  data_source: 'live' | 'estimated'
+  data_source: 'live' | 'estimated' | 'randomized'
 }
 
 export interface TrajectoryPoint {
@@ -42,7 +42,8 @@ export interface SimulateResult {
   trajectory: TrajectoryPoint[]
   ghost_trajectory: TrajectoryPoint[]
   conditions: StadiumConditions
-  result: 'goal' | 'miss_high' | 'miss_wide' | 'miss_short'
+  result: 'goal' | 'miss_high' | 'miss_wide' | 'miss_short' | 'saved'
+  keeper_trajectory: TrajectoryPoint[]
 }
 
 export interface SimulateParams {
@@ -56,6 +57,11 @@ export interface SimulateParams {
   spin_axis_z: number
 }
 
+export interface GameInitResult {
+  stadium: Stadium
+  conditions: StadiumConditions
+}
+
 // --- API Calls ---
 
 export async function fetchStadiums(): Promise<Stadium[]> {
@@ -67,6 +73,11 @@ export async function fetchConditions(stadiumId: string): Promise<StadiumConditi
   const { data } = await axios.get<StadiumConditions>(
     `${BASE}/stadium/${stadiumId}/conditions`
   )
+  return data
+}
+
+export async function fetchGameInit(): Promise<GameInitResult> {
+  const { data } = await axios.get<GameInitResult>(`${BASE}/game/init`)
   return data
 }
 

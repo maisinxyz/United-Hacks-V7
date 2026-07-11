@@ -188,3 +188,31 @@ $$\vec{F}_{M} = S (\vec{\omega} \times \vec{v})$$
 * **Focus on the Delta:** The most impressive visual is the *exact same kick parameters* resulting in two completely different trajectories in two different stadiums. Make this the centerpiece of the live demo.
 * **Keep Graphics Minimalist:** Do not waste time modeling complex 3D stadiums. A clean, wireframe, or low-poly aesthetic keeps the focus on the data, the backend, and the C++ engine.
 * **The "What-If" Feature:** If time permits, build a real-time slider that lets users manually override the air density or wind speed mid-flight to instantly see the trajectory warp.
+
+
+
+PRD UPDATES:
+Phase 5: Python Backend & Data Integration (Hours 13–17)
+1. [MODIFIED] Build the Stadium Climate Database
+Create stadiums.json with entries for famous stadiums.
+New Fields Needed: id, name, city, altitude_meters (fixed per location), temp_range_c (min/max), wind_range_m_s (min/max).
+2. [NEW UPDATE] Dynamic Locale-Bounded Conditions Logic
+Create a startup endpoint GET /game/init.
+Logic: The backend randomly selects a stadium from the database. It then generates randomized weather (temp, wind speed/direction) bounded strictly by the stadium's specific historical climate ranges to ensure realistic environmental conditions (e.g., Mexico City will always have high elevation, but wind/temp will vary slightly each time).
+4. [NEW UPDATE] Goalkeeper AI Logic
+In the POST /simulate endpoint, after calculating the ball's trajectory via the C++ engine, calculate the exact frame the ball crosses the goal line.
+AI Calculation: Determine if the AI Goalkeeper can reach that x, y coordinate in time based on a fixed "reaction time" delay and "movement speed" stat. Return the Goalkeeper's interception path coordinates alongside the ball's trajectory.
+1. [NEW UPDATE] Game Startup & Cinematic Zoom
+Upon hitting the React application, fetch GET /game/init.
+Camera Sequence: Position the <PerspectiveCamera> on the outside exterior of the loaded stadium model. Use @react-three/fiber and a library like gsap (or React Spring) to animate a smooth, sweeping zoom-in over the stadium roof, settling into the Kicker's first-person view behind the ball.
+2. [MODIFIED] Build the Preparation UI (Kicker's View)
+Stadium Badges: On the side of the screen, implement sleek UI badges displaying the randomly chosen stadium name, its Elevation, and the randomized Temperature and Wind.
+Kick Controls: Sliders/knobs for Power, Horizontal Aim, Vertical Pitch, Spin Rate, and Spin Axis.
+Simulate Button: Triggers the POST request to the backend.
+4. [NEW UPDATE] Visualizing the Environment (Wind)
+Implement a Three.js particle system to render the wind inside the stadium.
+Spawn semi-transparent grey line meshes (<Line> or <InstancedMesh>) that move horizontally across the screen. The speed and direction of these particles must visually match the backend's generated wind vector.
+1. [MODIFIED] Render the Asymmetric Action
+Store the returned [x, y, z] arrays in React state.
+Animate the ball mesh moving frame-by-frame.
+Simultaneously, animate the AI Goalkeeper (a simple rigged model or block) diving toward the calculated interception point.

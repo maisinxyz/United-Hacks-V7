@@ -1,16 +1,17 @@
 /**
  * StepWizard — Orchestrates the immersive UI flow.
- * Determines which overlay to show and what camera position to pass to PitchScene.
+ * New flow: Cinematic intro → Power → H-Aim → V-Aim → Curve → Kick Result
+ * Stadium is randomly assigned by the backend via /game/init.
  */
 
 import { useState, useCallback, useEffect } from 'react'
-import StadiumOverlay from './StadiumOverlay'
 import PowerOverlay from './PowerOverlay'
 import HorizontalAngleOverlay from './HorizontalAngleOverlay'
 import VerticalAngleOverlay from './VerticalAngleOverlay'
 import CurveOverlay from './CurveOverlay'
+import StadiumBadge from './StadiumBadge'
 import PitchScene, { type CameraConfig } from './PitchScene'
-import { runSimulation, type SimulateResult, type StadiumConditions, type TrajectoryPoint } from '../api'
+import { fetchGameInit, runSimulation, type SimulateResult, type StadiumConditions, type TrajectoryPoint } from '../api'
 
 export interface KickConfig {
   stadiumId: string
@@ -25,7 +26,7 @@ export interface KickConfig {
 }
 
 const INITIAL_CONFIG: KickConfig = {
-  stadiumId: 'metlife',
+  stadiumId: '',
   conditions: null,
   power: 50,
   horizontalAngle: 0,
@@ -36,27 +37,47 @@ const INITIAL_CONFIG: KickConfig = {
   spinAxisZ: 1,
 }
 
-// 0: Stadium, 1: Power, 2: H-Aim, 3: V-Aim, 4: Spin, 5: Kick Result
-const STEP_COUNT = 6
+// Steps: -1 = Cinematic Intro, 0 = Power, 1 = H-Aim, 2 = V-Aim, 3 = Curve, 4 = Kick Result
+const STEP_COUNT = 5
 
 const CAMERA_CONFIGS: Record<number, CameraConfig> = {
-  0: { position: [0, 5, -8], target: [0, 1, 27] },      // Stadium: behind ball, looking at goal
-  // Power: side/back view, zoomed in on ball, framed on the right
-  1: { position: [-3, 0.8, -2], target: [0.5, 0.11, 1.5] }, 
-  // H-Aim: High tactical angle from behind the ball looking towards the goal (avoids top-down singularity completely)
-  2: { position: [0, 12, -8], target: [0, 0, 15] },      
-  3: { position: [-15, 3, 13], target: [0, 1, 13] },     // V-Aim: side view
-  // Spin: camera is directly behind the ball, looking towards the goal, so the ball is dead center.
-  4: { position: [0, 1.0, -2.5], target: [0, 0.11, 15] }, 
-  5: { position: [0, 8, -12], target: [0, 2, 15] },      // Kick: cinematic behind view
+  [-1]: { position: [0, 45, -35], target: [0, 0, 15] },   // Cinematic: high aerial
+  0: { position: [-3, 0.8, -2], target: [0.5, 0.11, 1.5] }, // Power: side/back view
+  1: { position: [0, 12, -8], target: [0, 0, 15] },       // H-Aim: tactical behind
+  2: { position: [-15, 3, 13], target: [0, 1, 13] },       // V-Aim: side view
+  3: { position: [0, 1.0, -2.5], target: [0, 0.11, 15] },  // Curve: behind ball
+  4: { position: [0, 8, -12], target: [0, 2, 15] },        // Kick: cinematic behind
 }
 
 export default function StepWizard() {
-  const [step, setStep] = useState(0)
+  const [step, setStep] = useState(-1) // Start with cinematic intro
   const [config, setConfig] = useState<KickConfig>(INITIAL_CONFIG)
   const [simResult, setSimResult] = useState<SimulateResult | null>(null)
   const [previewTrajectory, setPreviewTrajectory] = useState<TrajectoryPoint[] | null>(null)
   const [loading, setLoading] = useState(false)
+  const [initLoaded, setInitLoaded] = useState(false)
+
+  // Fetch /game/init on mount
+  useEffect(() => {
+    fetchGameInit()
+      .then((init) => {
+        setConfig((prev) => ({
+          ...prev,
+          stadiumId: init.stadium.id,
+          conditions: init.conditions,
+        }))
+        setInitLoaded(true)
+      })
+      .catch(console.error)
+  }, [])
+
+  // Auto-advance from cinematic intro after data loads + delay
+  useEffect(() => {
+    if (step === -1 && initLoaded) {
+      const timer = setTimeout(() => setStep(0), 3000) // 3-second cinematic sweep
+      return () => clearTimeout(timer)
+    }
+  }, [step, initLoaded])
 
   const updateConfig = useCallback(
     (patch: Partial<KickConfig>) => setConfig((prev) => ({ ...prev, ...patch })),
@@ -65,7 +86,7 @@ export default function StepWizard() {
 
   // Live trajectory preview during Curve step
   useEffect(() => {
-    if (step !== 4) return
+    if (step !== 3) return
     
     let isCancelled = false
     const fetchPreview = async () => {
@@ -110,7 +131,7 @@ export default function StepWizard() {
         spin_axis_z: config.spinAxisZ,
       })
       setSimResult(result)
-      setStep(5) // Go to result step
+      setStep(4) // Go to result step
     } catch (err) {
       console.error('Simulation failed:', err)
     } finally {
@@ -118,14 +139,28 @@ export default function StepWizard() {
     }
   }
 
-  const handleRestart = () => {
-    setStep(0)
+  const handleRestart = async () => {
+    // Fetch a new random stadium
+    setStep(-1)
     setSimResult(null)
-    setConfig((prev) => ({ ...INITIAL_CONFIG, stadiumId: prev.stadiumId, conditions: prev.conditions }))
+    setPreviewTrajectory(null)
+    setInitLoaded(false)
+    setConfig(INITIAL_CONFIG)
+    try {
+      const init = await fetchGameInit()
+      setConfig((prev) => ({
+        ...prev,
+        stadiumId: init.stadium.id,
+        conditions: init.conditions,
+      }))
+      setInitLoaded(true)
+    } catch (err) {
+      console.error('Failed to re-init game:', err)
+    }
   }
 
-  const camera = CAMERA_CONFIGS[step]
-  const isDimmed = step < 5 // Dim background while configuring
+  const camera = CAMERA_CONFIGS[step] ?? CAMERA_CONFIGS[-1]
+  const isDimmed = step < 4 && step >= 0 // Dim background while configuring (not during intro)
 
   return (
     <div className="wizard-container">
@@ -135,32 +170,61 @@ export default function StepWizard() {
           trajectory={simResult?.trajectory}
           previewTrajectory={previewTrajectory}
           ghostTrajectory={simResult?.ghost_trajectory}
-          result={step === 5 ? simResult?.result : undefined}
+          keeperTrajectory={simResult?.keeper_trajectory}
+          result={step === 4 ? simResult?.result : undefined}
           dimmed={isDimmed}
           stepIndex={step}
           config={config}
-          instantCamera={step === 4}
+          instantCamera={step === 3}
         />
       </div>
 
+      {/* Stadium Badge — visible during kick prep steps */}
+      {step >= 0 && step <= 3 && config.conditions && (
+        <StadiumBadge conditions={config.conditions} />
+      )}
+
+      {/* Cinematic intro loading */}
+      {step === -1 && (
+        <div className="cinematic-intro">
+          <div className="cinematic-text">
+            {!initLoaded ? (
+              <div className="cinematic-loading">
+                <div className="spinner" />
+                <p>Loading stadium...</p>
+              </div>
+            ) : (
+              <div className="cinematic-stadium-reveal">
+                <h1>{config.conditions?.stadium.name}</h1>
+                <p>{config.conditions?.stadium.city}, {config.conditions?.stadium.country}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="overlay-container">
         {step === 0 && (
-          <StadiumOverlay config={config} onUpdate={updateConfig} onNext={next} />
+          <PowerOverlay power={config.power} onUpdate={(power) => updateConfig({ power })} onNext={next} onBack={() => {}} />
         )}
         {step === 1 && (
-          <PowerOverlay power={config.power} onUpdate={(power) => updateConfig({ power })} onNext={next} onBack={back} />
-        )}
-        {step === 2 && (
           <HorizontalAngleOverlay angle={config.horizontalAngle} onUpdate={(a) => updateConfig({ horizontalAngle: a })} onNext={next} onBack={back} />
         )}
-        {step === 3 && (
+        {step === 2 && (
           <VerticalAngleOverlay angle={config.verticalAngle} onUpdate={(a) => updateConfig({ verticalAngle: a })} onNext={next} onBack={back} />
         )}
-        {step === 4 && (
+        {step === 3 && (
           <CurveOverlay config={config} onUpdate={updateConfig} onKick={handleKick} onBack={back} loading={loading} />
         )}
-        {step === 5 && simResult && (
+        {step === 4 && simResult && (
           <div className="result-actions">
+            <div className="result-banner">
+              {simResult.result === 'goal' && <h2 className="result-goal">⚽ GOAL!</h2>}
+              {simResult.result === 'saved' && <h2 className="result-saved">🧤 SAVED!</h2>}
+              {simResult.result === 'miss_high' && <h2 className="result-miss">⬆️ Over the bar!</h2>}
+              {simResult.result === 'miss_wide' && <h2 className="result-miss">↔️ Wide!</h2>}
+              {simResult.result === 'miss_short' && <h2 className="result-miss">⬇️ Too short!</h2>}
+            </div>
             <button className="wizard-btn secondary frosted" onClick={handleRestart}>
               🔄 Try Again
             </button>
