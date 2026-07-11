@@ -39,6 +39,8 @@ export default function PitchScene({
   config,
   instantCamera = false,
 }: Props) {
+  const ballRef = useRef<THREE.Mesh>(null!)
+  
   return (
     <div className="pitch-scene-wrapper">
       <Canvas
@@ -82,7 +84,7 @@ export default function PitchScene({
 
         <Pitch />
         <ArenaEnvironment stadiumId={config.stadiumId} />
-        <GoalPosts />
+        <GoalPosts ballRef={ballRef} />
         <DistanceMarkers />
 
         {/* Ball at origin when no trajectory */}
@@ -114,10 +116,11 @@ export default function PitchScene({
         )}
 
         {/* Trajectory animation when available */}
-        {trajectory && trajectory.length > 0 && (
+        {stepIndex === 5 && trajectory && trajectory.length > 0 && (
           <TrajectoryAnimation
             trajectory={trajectory}
             ghostTrajectory={ghostTrajectory || []}
+            ballRef={ballRef}
           />
         )}
       </Canvas>
@@ -273,7 +276,118 @@ function PitchLine({ points }: { points: [number, number, number][] }) {
   return <Line points={vecs} color="white" lineWidth={2} opacity={0.7} transparent />
 }
 
-function GoalPosts() {
+function DynamicNet({
+  width,
+  height,
+  position,
+  rotation,
+  ballRef,
+}: {
+  width: number
+  height: number
+  position: [number, number, number]
+  rotation?: [number, number, number]
+  ballRef: React.MutableRefObject<THREE.Mesh>
+}) {
+  const meshRef = useRef<THREE.Mesh>(null!)
+  const initialPositions = useRef<Float32Array | null>(null)
+  const velocities = useRef<Float32Array | null>(null)
+  const worldPosVec = useMemo(() => new THREE.Vector3(), [])
+  const localPosVec = useMemo(() => new THREE.Vector3(), [])
+  
+  useEffect(() => {
+    if (meshRef.current) {
+      const geometry = meshRef.current.geometry
+      initialPositions.current = geometry.attributes.position.array.slice() as Float32Array
+      velocities.current = new Float32Array(initialPositions.current.length)
+    }
+  }, [])
+
+  useFrame((_, delta) => {
+    if (!meshRef.current || !initialPositions.current || !velocities.current || !ballRef.current) return
+    
+    const geometry = meshRef.current.geometry
+    const positions = geometry.attributes.position.array as Float32Array
+    const ballPos = ballRef.current.position
+
+    let needsUpdate = false
+    
+    // Physics parameters
+    const springK = 50.0 // Hooke's law spring constant
+    const damping = 0.9  // Velocity damping
+    const interactionRadius = 0.6 // How close the ball needs to be to affect vertices
+    
+    for (let i = 0; i < positions.length; i += 3) {
+      localPosVec.set(positions[i], positions[i + 1], positions[i + 2])
+      
+      // Convert local vertex to world space to check against ball
+      worldPosVec.copy(localPosVec)
+      worldPosVec.applyMatrix4(meshRef.current.matrixWorld)
+      
+      const dist = worldPosVec.distanceTo(ballPos)
+      
+      if (dist < interactionRadius) {
+        // Ball is hitting the net! Push the vertex outwards
+        const pushForce = (interactionRadius - dist) / interactionRadius
+        // Calculate direction from ball to vertex
+        const dirX = worldPosVec.x - ballPos.x
+        const dirY = worldPosVec.y - ballPos.y
+        const dirZ = worldPosVec.z - ballPos.z
+        
+        // Convert the push direction back to local space
+        const pushWorld = new THREE.Vector3(dirX, dirY, dirZ).normalize().multiplyScalar(pushForce * 5.0)
+        
+        // Add to velocity
+        velocities.current[i] += pushWorld.x * delta
+        velocities.current[i+1] += pushWorld.y * delta
+        velocities.current[i+2] += pushWorld.z * delta
+      }
+      
+      // Apply spring force towards initial position
+      const initX = initialPositions.current[i]
+      const initY = initialPositions.current[i+1]
+      const initZ = initialPositions.current[i+2]
+      
+      const dispX = localPosVec.x - initX
+      const dispY = localPosVec.y - initY
+      const dispZ = localPosVec.z - initZ
+      
+      velocities.current[i] -= dispX * springK * delta
+      velocities.current[i+1] -= dispY * springK * delta
+      velocities.current[i+2] -= dispZ * springK * delta
+      
+      // Apply damping
+      velocities.current[i] *= damping
+      velocities.current[i+1] *= damping
+      velocities.current[i+2] *= damping
+      
+      // Update position
+      const vx = velocities.current[i]
+      const vy = velocities.current[i+1]
+      const vz = velocities.current[i+2]
+      
+      if (Math.abs(vx) > 0.001 || Math.abs(vy) > 0.001 || Math.abs(vz) > 0.001 || Math.abs(dispX) > 0.001 || Math.abs(dispY) > 0.001 || Math.abs(dispZ) > 0.001) {
+        positions[i] += vx * delta
+        positions[i+1] += vy * delta
+        positions[i+2] += vz * delta
+        needsUpdate = true
+      }
+    }
+    
+    if (needsUpdate) {
+      geometry.attributes.position.needsUpdate = true
+    }
+  })
+
+  return (
+    <mesh ref={meshRef} position={position} rotation={rotation}>
+      <planeGeometry args={[width, height, 32, 16]} />
+      <meshStandardMaterial color="#e2e8f0" opacity={0.3} transparent side={THREE.DoubleSide} wireframe />
+    </mesh>
+  )
+}
+
+function GoalPosts({ ballRef }: { ballRef: React.MutableRefObject<THREE.Mesh> }) {
   const postRadius = 0.06
   const crossbarY = 2.44
   const halfWidth = 7.32 / 2
@@ -297,25 +411,13 @@ function GoalPosts() {
       </mesh>
       
       {/* Net Back */}
-      <mesh position={[0, crossbarY / 2, netDepth]}>
-        <planeGeometry args={[7.32, crossbarY]} />
-        <meshStandardMaterial color="white" transparent opacity={0.4} side={THREE.DoubleSide} />
-      </mesh>
+      <DynamicNet width={7.32} height={crossbarY} position={[0, crossbarY / 2, netDepth]} ballRef={ballRef} />
       {/* Net Left */}
-      <mesh position={[-halfWidth, crossbarY / 2, netDepth / 2]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[netDepth, crossbarY]} />
-        <meshStandardMaterial color="white" transparent opacity={0.4} side={THREE.DoubleSide} />
-      </mesh>
+      <DynamicNet width={netDepth} height={crossbarY} position={[-halfWidth, crossbarY / 2, netDepth / 2]} rotation={[0, Math.PI / 2, 0]} ballRef={ballRef} />
       {/* Net Right */}
-      <mesh position={[halfWidth, crossbarY / 2, netDepth / 2]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[netDepth, crossbarY]} />
-        <meshStandardMaterial color="white" transparent opacity={0.4} side={THREE.DoubleSide} />
-      </mesh>
+      <DynamicNet width={netDepth} height={crossbarY} position={[halfWidth, crossbarY / 2, netDepth / 2]} rotation={[0, Math.PI / 2, 0]} ballRef={ballRef} />
       {/* Net Top */}
-      <mesh position={[0, crossbarY, netDepth / 2]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[7.32, netDepth]} />
-        <meshStandardMaterial color="white" transparent opacity={0.4} side={THREE.DoubleSide} />
-      </mesh>
+      <DynamicNet width={7.32} height={netDepth} position={[0, crossbarY, netDepth / 2]} rotation={[-Math.PI / 2, 0, 0]} ballRef={ballRef} />
 
       <Text position={[0, crossbarY + 0.5, 0]} rotation={[0, Math.PI, 0]} fontSize={0.4} color="#1e6b38" anchorX="center" anchorY="bottom" font={undefined}>
         GOAL
@@ -408,8 +510,7 @@ function DistanceMarkers() {
   )
 }
 
-function TrajectoryAnimation({ trajectory, ghostTrajectory }: { trajectory: TrajectoryPoint[]; ghostTrajectory: TrajectoryPoint[] }) {
-  const ballRef = useRef<THREE.Mesh>(null!)
+function TrajectoryAnimation({ trajectory, ghostTrajectory, ballRef }: { trajectory: TrajectoryPoint[]; ghostTrajectory: TrajectoryPoint[]; ballRef: React.MutableRefObject<THREE.Mesh> }) {
   const [frameIndex, setFrameIndex] = useState(0)
   const [animating, setAnimating] = useState(true)
 
