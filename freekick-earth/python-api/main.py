@@ -137,7 +137,10 @@ def _kick_to_velocity(power: float, h_angle_deg: float, v_angle_deg: float) -> t
     """Convert human-friendly kick params into a 3D velocity vector.
     Z axis = forward toward goal, X = lateral, Y = up.
     """
-    h_rad = math.radians(h_angle_deg)
+    # Negate h_angle_deg because in our 3D coordinate system, 
+    # looking down +Z means +X is to the left of the screen.
+    # A negative h_angle means "Left", so we want a positive X velocity.
+    h_rad = math.radians(-h_angle_deg)
     v_rad = math.radians(v_angle_deg)
 
     vz = power * math.cos(v_rad) * math.cos(h_rad)  # forward

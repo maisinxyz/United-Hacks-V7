@@ -25,7 +25,7 @@ export interface KickConfig {
 }
 
 const INITIAL_CONFIG: KickConfig = {
-  stadiumId: 'default',
+  stadiumId: 'metlife',
   conditions: null,
   power: 50,
   horizontalAngle: 0,

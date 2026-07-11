@@ -303,7 +303,7 @@ function GoalPosts() {
         <meshStandardMaterial color="white" transparent opacity={0.4} side={THREE.DoubleSide} />
       </mesh>
 
-      <Text position={[0, crossbarY + 0.5, 0]} fontSize={0.4} color="#1e6b38" anchorX="center" anchorY="bottom" font={undefined}>
+      <Text position={[0, crossbarY + 0.5, 0]} rotation={[0, Math.PI, 0]} fontSize={0.4} color="#1e6b38" anchorX="center" anchorY="bottom" font={undefined}>
         GOAL
       </Text>
     </group>
@@ -380,10 +380,13 @@ function DistanceMarkers() {
   return (
     <group>
       {distances.map((d) => (
-        <group key={d}>
-          <PitchLine points={[[-1, 0.02, d], [1, 0.02, d]]} />
-          <Text position={[2, 0.1, d]} fontSize={0.35} color="#94a3b8" anchorX="left" font={undefined}>
-            {d}m
+        <group key={d} position={[0, 0, d]}>
+          <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[10, 0.1]} />
+            <meshStandardMaterial color="#ffffff" opacity={0.3} transparent />
+          </mesh>
+          <Text position={[2, 0.1, 0]} rotation={[-Math.PI / 2, 0, Math.PI]} fontSize={0.35} color="#94a3b8" anchorX="right" font={undefined}>
+            {Math.abs(d)}m
           </Text>
         </group>
       ))}
