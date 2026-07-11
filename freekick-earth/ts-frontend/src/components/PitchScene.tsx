@@ -10,6 +10,7 @@ import { Line, Text, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { TrajectoryPoint } from '../api'
 import type { KickConfig } from './StepWizard'
+import BCPlace from './BCPlace'
 
 export interface CameraConfig {
   position: [number, number, number]
@@ -21,7 +22,7 @@ interface Props {
   trajectory?: TrajectoryPoint[]
   previewTrajectory?: TrajectoryPoint[] | null
   ghostTrajectory?: TrajectoryPoint[]
-  keeperTrajectory?: TrajectoryPoint[]
+  // keeperTrajectory?: TrajectoryPoint[]
   result?: string
   dimmed?: boolean
   stepIndex: number
@@ -34,7 +35,7 @@ export default function PitchScene({
   trajectory,
   previewTrajectory,
   ghostTrajectory,
-  keeperTrajectory,
+  // keeperTrajectory,
   result,
   dimmed = false,
   stepIndex,
@@ -81,12 +82,12 @@ export default function PitchScene({
         />
         <hemisphereLight color="#87ceeb" groundColor="#2d8a4e" intensity={0.4} />
 
-        <color attach="background" args={['#d4edda']} />
-        <fog attach="fog" args={['#d4edda', 80, 200]} />
+        <color attach="background" args={['#87ceeb']} />
+        <fog attach="fog" args={['#87ceeb', 80, 300]} />
 
         <Pitch />
         <ArenaEnvironment stadiumId={config.stadiumId} />
-        {stepIndex === -1 && <StadiumShell />}
+        {stepIndex < 0 && <BCPlace />}
         {config.conditions && (
           <WindParticles speed={config.conditions.wind_speed_m_s} direction={config.conditions.wind_direction_deg} />
         )}
@@ -129,7 +130,8 @@ export default function PitchScene({
               ghostTrajectory={ghostTrajectory || []}
               ballRef={ballRef}
             />
-            {keeperTrajectory && <Goalkeeper trajectory={keeperTrajectory} />}
+            {/* Goalkeeper temporarily removed as per user request */}
+            {/* {keeperTrajectory && <Goalkeeper trajectory={keeperTrajectory} />} */}
           </>
         )}
       </Canvas>

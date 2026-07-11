@@ -194,3 +194,201 @@ input[type="range"] { width: 100%; accent-color: var(--color-pitch); }
   box-shadow: 0 8px 24px rgba(0,0,0,0.2); z-index: 20;
 }
 .result-actions { pointer-events: auto; }
+
+/* Entrance Screen */
+.entrance-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(8px);
+}
+
+.entrance-content {
+  text-align: center;
+  color: white;
+  animation: fadeInDown 1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.game-title {
+  font-size: 6rem;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -2px;
+  text-shadow: 0 4px 32px rgba(0, 0, 0, 0.8);
+  background: linear-gradient(135deg, #38bdf8, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.game-subtitle {
+  font-size: 1.5rem;
+  color: #94a3b8;
+  margin-top: 0.5rem;
+  margin-bottom: 4rem;
+}
+
+.entrance-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.wizard-btn.huge {
+  font-size: 1.8rem;
+  padding: 1.5rem 4rem;
+  border-radius: 100px;
+  box-shadow: 0 10px 40px rgba(56, 189, 248, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.wizard-btn.huge:hover {
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 15px 50px rgba(56, 189, 248, 0.6);
+}
+
+.future-buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+.wizard-btn.small {
+  padding: 0.75rem 1.5rem;
+  font-size: 0.9rem;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cinematic-intro-bottom-left {
+  position: absolute;
+  bottom: 2rem;
+  left: 2rem;
+  z-index: 50;
+  color: white;
+  animation: fadeInLeft 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 1.5rem 2rem;
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.cinematic-intro-bottom-left h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin: 0 0 0.5rem 0;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+}
+
+.cinematic-intro-bottom-left p {
+  font-size: 1.1rem;
+  color: #cbd5e1;
+  margin: 0;
+}
+
+@keyframes fadeInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Stadium Badge (Top Right) */
+.stadium-badge {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 50;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  color: white;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  min-width: 220px;
+  animation: fadeInDown 0.5s ease-out forwards;
+}
+
+.badge-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.badge-icon {
+  font-size: 1.25rem;
+}
+
+.badge-title h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.badge-title p {
+  margin: 0;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.badge-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.badge-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.35rem;
+  border-radius: 6px;
+}
+
+.badge-stat.highlight {
+  grid-column: 1 / -1;
+  background: rgba(56, 189, 248, 0.05);
+  border: 1px solid rgba(56, 189, 248, 0.1);
+}
+
+.badge-stat-icon {
+  font-size: 0.9rem;
+}
+
+.badge-stat-value {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+/* Try Again Button */
+.try-again-btn {
+  background: #3b82f6; /* Solid bright blue */
+  color: white;
+  font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 800;
+  font-size: 1.25rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 1rem 2.5rem;
+  border-radius: 100px;
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+  transition: all 0.2s ease-in-out;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.try-again-btn:hover {
+  background: #2563eb;
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+}

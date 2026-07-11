@@ -55,6 +55,7 @@ export interface SimulateParams {
   spin_axis_x: number
   spin_axis_y: number
   spin_axis_z: number
+  conditions: StadiumConditions
 }
 
 export interface GameInitResult {

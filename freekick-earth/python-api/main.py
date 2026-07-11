@@ -115,7 +115,7 @@ class SimulateRequest(BaseModel):
     spin_axis_x: float = 0.0   # spin axis components (normalised by engine)
     spin_axis_y: float = 1.0
     spin_axis_z: float = 0.0
-
+    conditions: ConditionsOut
 
 class TrajectoryPoint(BaseModel):
     x: float
@@ -123,11 +123,9 @@ class TrajectoryPoint(BaseModel):
     z: float
     t: float
 
-
 class GameInitResponse(BaseModel):
     stadium: StadiumOut
     conditions: ConditionsOut
-
 
 class SimulateResponse(BaseModel):
     trajectory: list[TrajectoryPoint]
@@ -135,7 +133,6 @@ class SimulateResponse(BaseModel):
     conditions: ConditionsOut
     result: str  # "goal" | "miss_high" | "miss_wide" | "miss_short" | "saved"
     keeper_trajectory: list[TrajectoryPoint]  # goalkeeper dive path
-
 
 # ---------------------------------------------------------------
 # Helpers
@@ -155,7 +152,6 @@ KEEPER_START_X = 0.0
 KEEPER_START_Y = 1.0         # standing height
 KEEPER_START_Z = 27.0        # on the goal line
 
-
 def _kick_to_velocity(power: float, h_angle_deg: float, v_angle_deg: float) -> tuple:
     """Convert human-friendly kick params into a 3D velocity vector.
     Z axis = forward toward goal, X = lateral, Y = up.
@@ -171,7 +167,6 @@ def _kick_to_velocity(power: float, h_angle_deg: float, v_angle_deg: float) -> t
     vy = power * math.sin(v_rad)                     # upward
 
     return (vx, vy, vz)
-
 
 def _run_simulation(
     power: float,
@@ -217,7 +212,6 @@ def _run_simulation(
         for s in raw
     ]
 
-
 def _classify_result(trajectory: list[TrajectoryPoint]) -> str:
     """Determine if the kick was a goal or a specific type of miss."""
     crossing_pt = None
@@ -247,7 +241,6 @@ def _classify_result(trajectory: list[TrajectoryPoint]) -> str:
         return "miss_high"
     else:
         return "miss_wide"
-
 
 def _calculate_keeper_trajectory(
     trajectory: list[TrajectoryPoint],
@@ -309,7 +302,6 @@ def _calculate_keeper_trajectory(
 
     return keeper_path, saved
 
-
 # ---------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------
@@ -319,12 +311,10 @@ async def root():
     """Health-check."""
     return {"status": "ok", "engine": ENGINE_AVAILABLE}
 
-
 @app.get("/stadiums", response_model=list[StadiumOut])
 async def list_stadiums():
     """Return all available stadiums."""
     return [StadiumOut(**s) for s in STADIUMS_LIST]
-
 
 @app.get("/game/init", response_model=GameInitResponse)
 async def game_init():
@@ -361,7 +351,6 @@ async def game_init():
 
     return GameInitResponse(stadium=stadium_out, conditions=conditions)
 
-
 @app.get("/stadium/{stadium_id}/conditions", response_model=ConditionsOut)
 async def get_conditions(stadium_id: str):
     """Fetch current weather + calculated air density for a stadium."""
@@ -395,7 +384,6 @@ async def get_conditions(stadium_id: str):
         data_source=source,
     )
 
-
 @app.post("/simulate", response_model=SimulateResponse)
 async def simulate(req: SimulateRequest):
     """Run the physics simulation and return actual + ghost trajectories."""
@@ -406,8 +394,8 @@ async def simulate(req: SimulateRequest):
     if not stadium:
         raise HTTPException(404, f"Stadium '{req.stadium_id}' not found.")
 
-    # Get conditions for this stadium
-    conditions = await get_conditions(req.stadium_id)
+    # Use conditions provided by the frontend
+    conditions = req.conditions
 
     spin_axis = (req.spin_axis_x, req.spin_axis_y, req.spin_axis_z)
 

@@ -41,12 +41,19 @@ def estimate_conditions_from_altitude(altitude_m: float) -> WeatherConditions:
     sea_k = sea_level_temp + 273.15
     pressure = sea_level_pressure * (temp_k / sea_k) ** (9.81 / (lapse_rate * 287.05))
 
+    import random
+    
+    # Generate random wind speed (0 to 15 m/s) and direction (0 to 360 deg)
+    # Higher altitudes could technically have stronger winds, but random is fine for gameplay.
+    random_wind_speed = round(random.uniform(0.0, 15.0), 1)
+    random_wind_direction = round(random.uniform(0.0, 360.0), 1)
+
     return WeatherConditions(
         temperature_celsius=round(temp_c, 1),
         pressure_hpa=round(pressure, 1),
         humidity_percent=50.0,     # neutral default
-        wind_speed_m_s=0.0,
-        wind_direction_deg=0.0,
+        wind_speed_m_s=random_wind_speed,
+        wind_direction_deg=random_wind_direction,
     )
 
 

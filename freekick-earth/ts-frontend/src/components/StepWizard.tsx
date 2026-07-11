@@ -5,6 +5,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react'
+import EntranceScreen from './EntranceScreen'
 import PowerOverlay from './PowerOverlay'
 import HorizontalAngleOverlay from './HorizontalAngleOverlay'
 import VerticalAngleOverlay from './VerticalAngleOverlay'
@@ -37,11 +38,17 @@ const INITIAL_CONFIG: KickConfig = {
   spinAxisZ: 1,
 }
 
-// Steps: -1 = Cinematic Intro, 0 = Power, 1 = H-Aim, 2 = V-Aim, 3 = Curve, 4 = Kick Result
+// Steps: 
+// -2 = Entrance, 
+// -1 = Cinematic Exterior, 
+// -0.5 = Cinematic Tunnel Fly-through,
+// 0 = Power, 1 = H-Aim, 2 = V-Aim, 3 = Curve, 4 = Kick Result
 const STEP_COUNT = 5
 
 const CAMERA_CONFIGS: Record<number, CameraConfig> = {
-  [-1]: { position: [0, 45, -35], target: [0, 0, 15] },   // Cinematic: high aerial
+  [-2]: { position: [0, 30, -50], target: [0, 5, 0] },      // Entrance background
+  [-1]: { position: [0, 50, -130], target: [0, 10, 0] },    // Cinematic: far exterior
+  [-0.5]: { position: [0, 5, -20], target: [0, 1, 15] },  // Cinematic: tunnel fly-through
   0: { position: [-3, 0.8, -2], target: [0.5, 0.11, 1.5] }, // Power: side/back view
   1: { position: [0, 12, -8], target: [0, 0, 15] },       // H-Aim: tactical behind
   2: { position: [-15, 3, 13], target: [0, 1, 13] },       // V-Aim: side view
@@ -50,31 +57,41 @@ const CAMERA_CONFIGS: Record<number, CameraConfig> = {
 }
 
 export default function StepWizard() {
-  const [step, setStep] = useState(-1) // Start with cinematic intro
+  const [step, setStep] = useState(-2) // Start at Entrance
   const [config, setConfig] = useState<KickConfig>(INITIAL_CONFIG)
   const [simResult, setSimResult] = useState<SimulateResult | null>(null)
   const [previewTrajectory, setPreviewTrajectory] = useState<TrajectoryPoint[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [initLoaded, setInitLoaded] = useState(false)
 
-  // Fetch /game/init on mount
-  useEffect(() => {
-    fetchGameInit()
-      .then((init) => {
-        setConfig((prev) => ({
-          ...prev,
-          stadiumId: init.stadium.id,
-          conditions: init.conditions,
-        }))
-        setInitLoaded(true)
-      })
-      .catch(console.error)
-  }, [])
+  const handlePlay = async () => {
+    setLoading(true)
+    try {
+      const init = await fetchGameInit()
+      setConfig((prev) => ({
+        ...prev,
+        stadiumId: init.stadium.id,
+        conditions: init.conditions,
+      }))
+      setInitLoaded(true)
+      setStep(-1) // Start cinematic sequence
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  // Auto-advance from cinematic intro after data loads + delay
+  // Cinematic sequence timing
   useEffect(() => {
     if (step === -1 && initLoaded) {
-      const timer = setTimeout(() => setStep(0), 3000) // 3-second cinematic sweep
+      // Exterior view for 3s
+      const timer = setTimeout(() => setStep(-0.5), 3000) 
+      return () => clearTimeout(timer)
+    }
+    if (step === -0.5) {
+      // Fly through tunnel for 2s
+      const timer = setTimeout(() => setStep(0), 2000)
       return () => clearTimeout(timer)
     }
   }, [step, initLoaded])
@@ -118,6 +135,7 @@ export default function StepWizard() {
   const back = () => setStep((s) => Math.max(s - 1, 0))
 
   const handleKick = async () => {
+    if (!config.conditions) return
     setLoading(true)
     try {
       const result = await runSimulation({
@@ -129,6 +147,7 @@ export default function StepWizard() {
         spin_axis_x: config.spinAxisX,
         spin_axis_y: config.spinAxisY,
         spin_axis_z: config.spinAxisZ,
+        conditions: config.conditions,
       })
       setSimResult(result)
       setStep(4) // Go to result step
@@ -140,66 +159,42 @@ export default function StepWizard() {
   }
 
   const handleRestart = async () => {
-    // Fetch a new random stadium
-    setStep(-1)
+    setStep(-2)
     setSimResult(null)
     setPreviewTrajectory(null)
     setInitLoaded(false)
     setConfig(INITIAL_CONFIG)
-    try {
-      const init = await fetchGameInit()
-      setConfig((prev) => ({
-        ...prev,
-        stadiumId: init.stadium.id,
-        conditions: init.conditions,
-      }))
-      setInitLoaded(true)
-    } catch (err) {
-      console.error('Failed to re-init game:', err)
-    }
   }
-
-  const camera = CAMERA_CONFIGS[step] ?? CAMERA_CONFIGS[-1]
-  const isDimmed = step < 4 && step >= 0 // Dim background while configuring (not during intro)
 
   return (
     <div className="wizard-container">
       <div className="scene-background">
         <PitchScene
-          camera={camera}
+          camera={CAMERA_CONFIGS[step]}
           trajectory={simResult?.trajectory}
           previewTrajectory={previewTrajectory}
-          ghostTrajectory={simResult?.ghost_trajectory}
-          keeperTrajectory={simResult?.keeper_trajectory}
+          ghostTrajectory={previewTrajectory || undefined}
+          // keeperTrajectory={simResult?.keeper_trajectory}
           result={step === 4 ? simResult?.result : undefined}
-          dimmed={isDimmed}
+          dimmed={false} // Removed dimming to keep things bright
           stepIndex={step}
           config={config}
-          instantCamera={step === 3}
+          instantCamera={step === -2 || step === -1} // Snap to initial camera positions
         />
       </div>
 
-      {/* Stadium Badge — visible during kick prep steps */}
-      {step >= 0 && step <= 3 && config.conditions && (
+      {step === -2 && <EntranceScreen onPlay={handlePlay} />}
+
+      {/* Stadium Badge — visible during exterior cinematic and kick prep steps */}
+      {(step === -1 || (step >= 0 && step <= 3)) && config.conditions && (
         <StadiumBadge conditions={config.conditions} />
       )}
 
-      {/* Cinematic intro loading */}
+      {/* Cinematic intro text (only show on -1 so it doesn't block tunnel run) */}
       {step === -1 && (
-        <div className="cinematic-intro">
-          <div className="cinematic-text">
-            {!initLoaded ? (
-              <div className="cinematic-loading">
-                <div className="spinner" />
-                <p>Loading stadium...</p>
-              </div>
-            ) : (
-              <div className="cinematic-stadium-reveal">
-                <h1>{config.conditions?.stadium.name}</h1>
-                <p>{config.conditions?.stadium.city}, {config.conditions?.stadium.country}</p>
-              </div>
-            )}
-          </div>
+        <div className="cinematic-intro-bottom-left">
+          <h1>{config.conditions?.stadium.name}</h1>
+          <p>{config.conditions?.stadium.city}, {config.conditions?.stadium.country} • Altitude: {config.conditions?.stadium.altitude_meters}m</p>
         </div>
       )}
 
@@ -225,7 +220,7 @@ export default function StepWizard() {
               {simResult.result === 'miss_wide' && <h2 className="result-miss">↔️ Wide!</h2>}
               {simResult.result === 'miss_short' && <h2 className="result-miss">⬇️ Too short!</h2>}
             </div>
-            <button className="wizard-btn secondary frosted" onClick={handleRestart}>
+            <button className="wizard-btn try-again-btn" onClick={handleRestart}>
               🔄 Try Again
             </button>
           </div>
