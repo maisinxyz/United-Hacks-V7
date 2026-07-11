@@ -6,7 +6,7 @@
 
 import { useRef, useState, useMemo, useEffect, forwardRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Line, Text, OrbitControls } from '@react-three/drei'
+import { Line, Text, CameraControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { TrajectoryPoint } from '../api'
 import type { KickConfig } from './StepWizard'
@@ -63,18 +63,7 @@ export default function PitchScene({
           target={camera.target} 
           position={camera.position} 
           instant={instantCamera} 
-          disabled={stepIndex === 5} 
         />
-        
-        {stepIndex === 5 && (
-          <OrbitControls 
-            makeDefault 
-            enableDamping 
-            target={camera.target} 
-            maxPolarAngle={Math.PI / 2 - 0.05} // Don't let camera go below ground
-            maxDistance={150}
-          />
-        )}
 
         <ambientLight intensity={0.6} />
         <directionalLight
@@ -157,38 +146,28 @@ export default function PitchScene({
   )
 }
 
-function CameraController({ position, target, instant = false, disabled = false }: { position: [number, number, number]; target: [number, number, number]; instant?: boolean; disabled?: boolean }) {
-  const { camera } = useThree()
-  const targetVec = useRef(new THREE.Vector3(...target))
-  const posVec = useRef(new THREE.Vector3(...position))
-
-  const dummyCamera = useMemo(() => new THREE.PerspectiveCamera(), [])
+function CameraController({ position, target, instant = false }: { position: [number, number, number]; target: [number, number, number]; instant?: boolean }) {
+  const controlsRef = useRef<any>(null)
 
   useEffect(() => {
-    posVec.current.set(...position)
-    targetVec.current.set(...target)
-  }, [position, target])
-
-  useFrame(() => {
-    if (disabled) return
-    const speed = instant ? 1 : 0.04
-    
-    // Smoothly lerp position
-    camera.position.lerp(posVec.current, speed)
-    
-    // Calculate the desired rotation using a dummy camera
-    dummyCamera.position.copy(camera.position)
-    // For top-down views, prevent the exact [0, -1, 0] forward vector from causing Up-vector singularity
-    if (dummyCamera.position.x === targetVec.current.x && dummyCamera.position.z === targetVec.current.z) {
-        dummyCamera.position.z += 0.001
+    if (controlsRef.current) {
+      controlsRef.current.setLookAt(
+        position[0], position[1], position[2],
+        target[0], target[1], target[2],
+        !instant
+      )
     }
-    dummyCamera.up.set(0, 1, 0)
-    dummyCamera.lookAt(targetVec.current)
-    
-    // Smoothly slerp rotation
-    camera.quaternion.slerp(dummyCamera.quaternion, speed)
-  })
-  return null
+  }, [position, target, instant])
+
+  return (
+    <CameraControls 
+      ref={controlsRef} 
+      makeDefault 
+      maxPolarAngle={Math.PI / 2 - 0.05} // Don't let camera go below ground
+      maxDistance={250}
+      dollySpeed={1.5}
+    />
+  )
 }
 
 const SoccerBall = forwardRef<THREE.Mesh, any>((props, ref) => {
