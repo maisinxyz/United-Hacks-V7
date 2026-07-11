@@ -1,0 +1,146 @@
+[
+  {
+    "id": "metlife",
+    "name": "MetLife Stadium",
+    "city": "East Rutherford, NJ",
+    "country": "USA",
+    "lat": 40.8128,
+    "lon": -74.0742,
+    "altitude_meters": 10
+  },
+  {
+    "id": "rosebowl",
+    "name": "Rose Bowl Stadium",
+    "city": "Pasadena, CA",
+    "country": "USA",
+    "lat": 34.1613,
+    "lon": -118.1676,
+    "altitude_meters": 253
+  },
+  {
+    "id": "sofi",
+    "name": "SoFi Stadium",
+    "city": "Inglewood, CA",
+    "country": "USA",
+    "lat": 33.9535,
+    "lon": -118.3392,
+    "altitude_meters": 25
+  },
+  {
+    "id": "levi",
+    "name": "Levi's Stadium",
+    "city": "Santa Clara, CA",
+    "country": "USA",
+    "lat": 37.4033,
+    "lon": -121.9695,
+    "altitude_meters": 12
+  },
+  {
+    "id": "att",
+    "name": "AT&T Stadium",
+    "city": "Arlington, TX",
+    "country": "USA",
+    "lat": 32.7473,
+    "lon": -97.0945,
+    "altitude_meters": 184
+  },
+  {
+    "id": "nrg",
+    "name": "NRG Stadium",
+    "city": "Houston, TX",
+    "country": "USA",
+    "lat": 29.6847,
+    "lon": -95.4107,
+    "altitude_meters": 15
+  },
+  {
+    "id": "mercedes",
+    "name": "Mercedes-Benz Stadium",
+    "city": "Atlanta, GA",
+    "country": "USA",
+    "lat": 33.7554,
+    "lon": -84.4010,
+    "altitude_meters": 320
+  },
+  {
+    "id": "lincoln",
+    "name": "Lincoln Financial Field",
+    "city": "Philadelphia, PA",
+    "country": "USA",
+    "lat": 39.9008,
+    "lon": -75.1675,
+    "altitude_meters": 12
+  },
+  {
+    "id": "gillette",
+    "name": "Gillette Stadium",
+    "city": "Foxborough, MA",
+    "country": "USA",
+    "lat": 42.0909,
+    "lon": -71.2643,
+    "altitude_meters": 85
+  },
+  {
+    "id": "centurylink",
+    "name": "Lumen Field",
+    "city": "Seattle, WA",
+    "country": "USA",
+    "lat": 47.5952,
+    "lon": -122.3316,
+    "altitude_meters": 5
+  },
+  {
+    "id": "bcplace",
+    "name": "BC Place",
+    "city": "Vancouver, BC",
+    "country": "Canada",
+    "lat": 49.2768,
+    "lon": -123.1118,
+    "altitude_meters": 5
+  },
+  {
+    "id": "azteca",
+    "name": "Estadio Azteca",
+    "city": "Mexico City",
+    "country": "Mexico",
+    "lat": 19.3029,
+    "lon": -99.1505,
+    "altitude_meters": 2240
+  },
+  {
+    "id": "akron",
+    "name": "Estadio Akron",
+    "city": "Guadalajara",
+    "country": "Mexico",
+    "lat": 20.6810,
+    "lon": -103.4624,
+    "altitude_meters": 1566
+  },
+  {
+    "id": "monterrey",
+    "name": "Estadio BBVA",
+    "city": "Monterrey",
+    "country": "Mexico",
+    "lat": 25.6698,
+    "lon": -100.2447,
+    "altitude_meters": 540
+  },
+  {
+    "id": "bmo",
+    "name": "BMO Field",
+    "city": "Toronto, ON",
+    "country": "Canada",
+    "lat": 43.6332,
+    "lon": -79.4186,
+    "altitude_meters": 77
+  },
+  {
+    "id": "geodome",
+    "name": "Geodome at TQL Stadium",
+    "city": "Cincinnati, OH",
+    "country": "USA",
+    "lat": 39.1109,
+    "lon": -84.5230,
+    "altitude_meters": 149
+  }
+]
