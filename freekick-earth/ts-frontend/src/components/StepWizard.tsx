@@ -62,10 +62,11 @@ export default function StepWizard() {
   const [simResult, setSimResult] = useState<SimulateResult | null>(null)
   const [previewTrajectory, setPreviewTrajectory] = useState<TrajectoryPoint[] | null>(null)
   const [loading, setLoading] = useState(false)
-  const [initLoaded, setInitLoaded] = useState(false)
+  const [resultRevealed, setResultRevealed] = useState(false)
 
   const handlePlay = async () => {
     setLoading(true)
+    setResultRevealed(false)
     try {
       const init = await fetchGameInit()
       setConfig((prev) => ({
@@ -73,7 +74,6 @@ export default function StepWizard() {
         stadiumId: init.stadium.id,
         conditions: init.conditions,
       }))
-      setInitLoaded(true)
       setStep(0) // Go directly to power step
     } catch (e) {
       console.error(e)
@@ -90,6 +90,8 @@ export default function StepWizard() {
   // Live trajectory preview during Curve step
   useEffect(() => {
     if (step !== 3) return
+    const conditions = config.conditions
+    if (!conditions) return
     
     let isCancelled = false
     const fetchPreview = async () => {
@@ -103,6 +105,7 @@ export default function StepWizard() {
           spin_axis_x: config.spinAxisX,
           spin_axis_y: config.spinAxisY,
           spin_axis_z: config.spinAxisZ,
+          conditions,
         })
         if (!isCancelled) setPreviewTrajectory(result.trajectory)
       } catch (e) {
@@ -123,6 +126,7 @@ export default function StepWizard() {
   const handleKick = async () => {
     if (!config.conditions) return
     setLoading(true)
+    setResultRevealed(false)
     try {
       const result = await runSimulation({
         stadium_id: config.stadiumId,
@@ -148,7 +152,7 @@ export default function StepWizard() {
     setStep(-2)
     setSimResult(null)
     setPreviewTrajectory(null)
-    setInitLoaded(false)
+    setResultRevealed(false)
     setConfig(INITIAL_CONFIG)
   }
 
@@ -161,11 +165,13 @@ export default function StepWizard() {
           previewTrajectory={previewTrajectory}
           ghostTrajectory={previewTrajectory || undefined}
           // keeperTrajectory={simResult?.keeper_trajectory}
-          result={step === 4 ? simResult?.result : undefined}
+          result={step === 4 && resultRevealed ? simResult?.result : undefined}
+          resultVisible={step === 4 && resultRevealed}
           dimmed={false} // Removed dimming to keep things bright
           stepIndex={step}
           config={config}
           instantCamera={step === -2 || step === 0} // Snap to initial camera positions
+          onTrajectoryComplete={() => setResultRevealed(true)}
         />
       </div>
 
@@ -197,14 +203,14 @@ export default function StepWizard() {
         {step === 3 && (
           <CurveOverlay config={config} onUpdate={updateConfig} onKick={handleKick} onBack={back} loading={loading} />
         )}
-        {step === 4 && simResult && (
+        {step === 4 && simResult && resultRevealed && (
           <div className="result-actions">
             <div className="result-banner">
-              {simResult.result === 'goal' && <h2 className="result-goal">⚽ GOAL!</h2>}
-              {simResult.result === 'saved' && <h2 className="result-saved">🧤 SAVED!</h2>}
-              {simResult.result === 'miss_high' && <h2 className="result-miss">⬆️ Over the bar!</h2>}
-              {simResult.result === 'miss_wide' && <h2 className="result-miss">↔️ Wide!</h2>}
-              {simResult.result === 'miss_short' && <h2 className="result-miss">⬇️ Too short!</h2>}
+              {simResult.result === 'goal' ? (
+                <h2 className="result-goal">⚽ GOAL!</h2>
+              ) : (
+                <h2 className="result-miss">❌ MISSED</h2>
+              )}
             </div>
             <button className="wizard-btn try-again-btn" onClick={handleRestart}>
               🔄 Try Again

@@ -24,10 +24,12 @@ interface Props {
   ghostTrajectory?: TrajectoryPoint[]
   // keeperTrajectory?: TrajectoryPoint[]
   result?: string
+  resultVisible?: boolean
   dimmed?: boolean
   stepIndex: number
   config: KickConfig
   instantCamera?: boolean
+  onTrajectoryComplete?: () => void
 }
 
 export default function PitchScene({
@@ -37,10 +39,12 @@ export default function PitchScene({
   ghostTrajectory,
   // keeperTrajectory,
   result,
+  resultVisible = true,
   dimmed = false,
   stepIndex,
   config,
   instantCamera = false,
+  onTrajectoryComplete,
 }: Props) {
   const ballRef = useRef<THREE.Mesh>(null!)
   
@@ -129,6 +133,7 @@ export default function PitchScene({
               trajectory={trajectory}
               ghostTrajectory={ghostTrajectory || []}
               ballRef={ballRef}
+              onComplete={onTrajectoryComplete}
             />
             {/* Goalkeeper temporarily removed as per user request */}
             {/* {keeperTrajectory && <Goalkeeper trajectory={keeperTrajectory} />} */}
@@ -138,14 +143,14 @@ export default function PitchScene({
 
       {dimmed && <div className="scene-dim" />}
 
-      {result && (
+      {resultVisible && result && (
         <div
           className="result-badge"
           style={{
             background: result === 'goal' ? 'rgba(34, 197, 94, 0.9)' : 'rgba(239, 68, 68, 0.9)',
           }}
         >
-          {result === 'goal' ? '⚽ GOAL!' : '❌ MISS'}
+          {result === 'goal' ? '⚽ GOAL!' : '❌ MISSED'}
         </div>
       )}
     </div>
@@ -525,18 +530,37 @@ function DistanceMarkers() {
   )
 }
 
-function TrajectoryAnimation({ trajectory, ghostTrajectory, ballRef }: { trajectory: TrajectoryPoint[]; ghostTrajectory: TrajectoryPoint[]; ballRef: React.MutableRefObject<THREE.Mesh> }) {
+function TrajectoryAnimation({
+  trajectory,
+  ghostTrajectory,
+  ballRef,
+  onComplete,
+}: {
+  trajectory: TrajectoryPoint[]
+  ghostTrajectory: TrajectoryPoint[]
+  ballRef: React.MutableRefObject<THREE.Mesh>
+  onComplete?: () => void
+}) {
   const [frameIndex, setFrameIndex] = useState(0)
   const [animating, setAnimating] = useState(true)
+  const completedRef = useRef(false)
 
   const pathPoints = useMemo(() => trajectory.map((p) => new THREE.Vector3(p.x, p.y, p.z)), [trajectory])
   const ghostPoints = useMemo(() => ghostTrajectory.map((p) => new THREE.Vector3(p.x, p.y, p.z)), [ghostTrajectory])
   const trailPoints = useMemo(() => pathPoints.slice(0, frameIndex + 1), [pathPoints, frameIndex])
 
-  useMemo(() => {
+  useEffect(() => {
     setFrameIndex(0)
     setAnimating(true)
+    completedRef.current = false
   }, [trajectory])
+
+  useEffect(() => {
+    if (!animating && !completedRef.current) {
+      completedRef.current = true
+      onComplete?.()
+    }
+  }, [animating, onComplete])
 
   useFrame(() => {
     if (!animating || trajectory.length === 0) return

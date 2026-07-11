@@ -131,7 +131,7 @@ class SimulateResponse(BaseModel):
     trajectory: list[TrajectoryPoint]
     ghost_trajectory: list[TrajectoryPoint]  # baseline (sea-level, 15°C, no wind)
     conditions: ConditionsOut
-    result: str  # "goal" | "miss_high" | "miss_wide" | "miss_short" | "saved"
+    result: str  # "goal" | "miss_high" | "miss_wide" | "miss_short"
     keeper_trajectory: list[TrajectoryPoint]  # goalkeeper dive path
 
 # ---------------------------------------------------------------
@@ -425,15 +425,10 @@ async def simulate(req: SimulateRequest):
 
     result = _classify_result(actual)
 
-    # --- Goalkeeper AI ---
-    keeper_path, saved = _calculate_keeper_trajectory(actual)
-    if saved and result == "goal":
-        result = "saved"
-
     return SimulateResponse(
         trajectory=actual,
         ghost_trajectory=ghost,
         conditions=conditions,
         result=result,
-        keeper_trajectory=keeper_path,
+        keeper_trajectory=[],
     )

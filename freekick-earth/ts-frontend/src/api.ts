@@ -42,7 +42,7 @@ export interface SimulateResult {
   trajectory: TrajectoryPoint[]
   ghost_trajectory: TrajectoryPoint[]
   conditions: StadiumConditions
-  result: 'goal' | 'miss_high' | 'miss_wide' | 'miss_short' | 'saved'
+  result: 'goal' | 'miss_high' | 'miss_wide' | 'miss_short'
   keeper_trajectory: TrajectoryPoint[]
 }
 
