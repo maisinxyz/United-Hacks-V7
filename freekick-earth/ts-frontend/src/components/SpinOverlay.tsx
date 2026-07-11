@@ -125,14 +125,6 @@ export default function SpinOverlay({ config, onUpdate, onKick, onBack, loading 
       </div>
     </div>
   )
-function AxisSlider({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  return (
-    <div className="axis-slider">
-      <div className="axis-slider-header">
-        <span>{label}</span>
-        <span className="axis-value">{value.toFixed(1)}</span>
-      </div>
-      <input type="range" min={-1} max={1} step={0.1} value={value} onChange={(e) => onChange(parseFloat(e.target.value))} />
-    </div>
-  )
 }
+
+

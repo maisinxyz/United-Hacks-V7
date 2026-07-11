@@ -25,15 +25,15 @@ export interface KickConfig {
 }
 
 const INITIAL_CONFIG: KickConfig = {
-  stadiumId: '',
+  stadiumId: 'default',
   conditions: null,
-  power: 28,
+  power: 50,
   horizontalAngle: 0,
   verticalAngle: 22,
   spinRate: 8,
-  spinAxisX: 0,
+  spinAxisX: 1,
   spinAxisY: 1,
-  spinAxisZ: 0,
+  spinAxisZ: 1,
 }
 
 // 0: Stadium, 1: Power, 2: H-Aim, 3: V-Aim, 4: Spin, 5: Kick Result
@@ -46,8 +46,8 @@ const CAMERA_CONFIGS: Record<number, CameraConfig> = {
   // H-Aim: High tactical angle from behind the ball looking towards the goal (avoids top-down singularity completely)
   2: { position: [0, 12, -8], target: [0, 0, 15] },      
   3: { position: [-15, 3, 13], target: [0, 1, 13] },     // V-Aim: side view
-  // Spin: camera is slightly left of ball, looking slightly right, framing the ball securely on the left side
-  4: { position: [-0.3, 0.4, -1.0], target: [0.15, 0.11, 0] }, 
+  // Spin: camera is positioned to the right of the ball, looking straight ahead, so the ball appears purely on the left.
+  4: { position: [0.5, 0.5, -1.5], target: [0.5, 0.11, 0] }, 
   5: { position: [0, 8, -12], target: [0, 2, 15] },      // Kick: cinematic behind view
 }
 
