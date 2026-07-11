@@ -144,7 +144,10 @@ def _kick_to_velocity(power: float, h_angle_deg: float, v_angle_deg: float) -> t
     """Convert human-friendly kick params into a 3D velocity vector.
     Z axis = forward toward goal, X = lateral, Y = up.
     """
-    h_rad = math.radians(h_angle_deg)
+    # Negate h_angle_deg because in our 3D coordinate system, 
+    # looking down +Z means +X is to the left of the screen.
+    # A negative h_angle means "Left", so we want a positive X velocity.
+    h_rad = math.radians(-h_angle_deg)
     v_rad = math.radians(v_angle_deg)
 
     vz = power * math.cos(v_rad) * math.cos(h_rad)  # forward
@@ -201,25 +204,30 @@ def _run_simulation(
 
 def _classify_result(trajectory: list[TrajectoryPoint]) -> str:
     """Determine if the kick was a goal or a specific type of miss."""
-    # Find the point closest to the goal plane (z ≈ GOAL_DISTANCE)
-    best = None
+    crossing_pt = None
+    prev_pt = None
+    
     for pt in trajectory:
-        if best is None or abs(pt.z - GOAL_DISTANCE) < abs(best.z - GOAL_DISTANCE):
-            best = pt
+        if prev_pt is not None and prev_pt.z < GOAL_DISTANCE and pt.z >= GOAL_DISTANCE:
+            # Interpolate to find exact crossing point
+            fraction = (GOAL_DISTANCE - prev_pt.z) / (pt.z - prev_pt.z)
+            crossing_y = prev_pt.y + fraction * (pt.y - prev_pt.y)
+            crossing_x = prev_pt.x + fraction * (pt.x - prev_pt.x)
+            
+            # Create the interpolated point
+            crossing_pt = TrajectoryPoint(x=crossing_x, y=crossing_y, z=GOAL_DISTANCE, t=pt.t)
+            break
+        prev_pt = pt
 
-    if best is None:
+    if crossing_pt is None:
         return "miss_short"
 
     half_w = GOAL_WIDTH / 2.0
 
-    # Check if it crossed the goal plane
-    if best.z < GOAL_DISTANCE - 1.0:
-        return "miss_short"
-
     # Check if within the posts and under the bar
-    if abs(best.x) <= half_w and 0.0 <= best.y <= GOAL_HEIGHT:
+    if abs(crossing_pt.x) <= half_w and 0.0 <= crossing_pt.y <= GOAL_HEIGHT:
         return "goal"
-    elif best.y > GOAL_HEIGHT:
+    elif crossing_pt.y > GOAL_HEIGHT:
         return "miss_high"
     else:
         return "miss_wide"

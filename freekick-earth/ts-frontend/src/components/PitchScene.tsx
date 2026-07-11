@@ -4,9 +4,9 @@
  * Renders pitch, goalposts, ball, trajectory, aim preview, and spin arrows.
  */
 
-import { useRef, useState, useMemo, useEffect } from 'react'
+import { useRef, useState, useMemo, useEffect, forwardRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Line, Text, Torus, OrbitControls } from '@react-three/drei'
+import { Line, Text, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { TrajectoryPoint } from '../api'
 import type { KickConfig } from './StepWizard'
@@ -19,6 +19,7 @@ export interface CameraConfig {
 interface Props {
   camera: CameraConfig
   trajectory?: TrajectoryPoint[]
+  previewTrajectory?: TrajectoryPoint[] | null
   ghostTrajectory?: TrajectoryPoint[]
   result?: string
   dimmed?: boolean
@@ -30,6 +31,7 @@ interface Props {
 export default function PitchScene({
   camera,
   trajectory,
+  previewTrajectory,
   ghostTrajectory,
   result,
   dimmed = false,
@@ -37,6 +39,8 @@ export default function PitchScene({
   config,
   instantCamera = false,
 }: Props) {
+  const ballRef = useRef<THREE.Mesh>(null!)
+  
   return (
     <div className="pitch-scene-wrapper">
       <Canvas
@@ -80,7 +84,7 @@ export default function PitchScene({
 
         <Pitch />
         <ArenaEnvironment stadiumId={config.stadiumId} />
-        <GoalPosts />
+        <GoalPosts ballRef={ballRef} />
         <DistanceMarkers />
 
         {/* Ball at origin when no trajectory */}
@@ -95,14 +99,28 @@ export default function PitchScene({
 
         {/* Live Spin Arrows for Spin (Step 4) */}
         {stepIndex === 4 && (
-          <SpinArrows config={config} />
+          <>
+            {previewTrajectory && previewTrajectory.length > 0 && (
+              <Line
+                points={previewTrajectory.map((p) => new THREE.Vector3(p.x, p.y, p.z))}
+                color="#f59e0b" // Glowing amber
+                lineWidth={3}
+                dashed
+                dashSize={0.5}
+                gapSize={0.2}
+                opacity={0.8}
+                transparent
+              />
+            )}
+          </>
         )}
 
         {/* Trajectory animation when available */}
-        {trajectory && trajectory.length > 0 && (
+        {stepIndex === 5 && trajectory && trajectory.length > 0 && (
           <TrajectoryAnimation
             trajectory={trajectory}
             ghostTrajectory={ghostTrajectory || []}
+            ballRef={ballRef}
           />
         )}
       </Canvas>
@@ -157,13 +175,51 @@ function CameraController({ position, target, instant = false, disabled = false 
   return null
 }
 
-function StaticBall() {
+const SoccerBall = forwardRef<THREE.Mesh, any>((props, ref) => {
+  const texture = useMemo(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 512
+    canvas.height = 256
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      ctx.fillStyle = 'white'
+      ctx.fillRect(0, 0, 512, 256)
+      ctx.fillStyle = '#111'
+      
+      for (let i = 0; i < 10; i++) {
+        for (let j = 0; j < 6; j++) {
+          if ((i + j) % 2 === 0) {
+            ctx.beginPath()
+            const cx = i * 51.2 + 25.6
+            const cy = j * 42.6 + 21.3
+            const r = 18
+            for (let k = 0; k < 6; k++) {
+              const x = cx + r * Math.cos(k * Math.PI / 3)
+              const y = cy + r * Math.sin(k * Math.PI / 3)
+              if (k === 0) ctx.moveTo(x, y)
+              else ctx.lineTo(x, y)
+            }
+            ctx.fill()
+          }
+        }
+      }
+    }
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.wrapS = THREE.RepeatWrapping
+    tex.wrapT = THREE.RepeatWrapping
+    return tex
+  }, [])
+
   return (
-    <mesh position={[0, 0.11, 0]} castShadow>
-      <sphereGeometry args={[0.11, 24, 24]} />
-      <meshStandardMaterial color="white" roughness={0.3} metalness={0.1} />
+    <mesh ref={ref} {...props} castShadow>
+      <sphereGeometry args={[0.11, 32, 32]} />
+      <meshStandardMaterial map={texture} roughness={0.6} metalness={0.1} />
     </mesh>
   )
+})
+
+function StaticBall() {
+  return <SoccerBall position={[0, 0.11, 0]} />
 }
 
 // ---------------------------------------------------------------
@@ -194,45 +250,6 @@ function AimPreview({ config }: { config: KickConfig }) {
 // ---------------------------------------------------------------
 // Spin Arrows
 // ---------------------------------------------------------------
-function SpinArrows({ config }: { config: KickConfig }) {
-  // Use Torus to draw circular arrows around the ball
-  // Radius of ball is 0.11, so arrow radius is slightly larger
-  const R = 0.18
-  const maxSpin = 60
-  
-  // Calculate arc angle based on spin rate and axis weight
-  // If spinRate is 60 and axis is 1.0, arc is almost full circle (Math.PI * 1.8)
-  const baseArc = (config.spinRate / maxSpin) * Math.PI * 1.8
-
-  const arcX = baseArc * Math.abs(config.spinAxisX)
-  const arcY = baseArc * Math.abs(config.spinAxisY)
-  const arcZ = baseArc * Math.abs(config.spinAxisZ)
-
-  return (
-    <group position={[0, 0.11, 0]}>
-      {/* X Axis Spin (Topspin/Backspin) - rotates around X axis */}
-      {arcX > 0.1 && (
-        <group rotation={[0, 0, -Math.PI / 2]}>
-          <Torus args={[R, 0.015, 8, 32, arcX]} position={[0, 0, 0]} material-color="#ef4444" />
-        </group>
-      )}
-      {/* Y Axis Spin (Sidespin) - rotates around Y axis */}
-      {arcY > 0.1 && (
-        <group rotation={[Math.PI / 2, 0, 0]}>
-          <Torus args={[R, 0.015, 8, 32, arcY]} position={[0, 0, 0]} material-color="#22c55e" />
-        </group>
-      )}
-      {/* Z Axis Spin (Corkscrew) - rotates around Z axis */}
-      {arcZ > 0.1 && (
-        <group rotation={[0, 0, 0]}>
-          <Torus args={[R, 0.015, 8, 32, arcZ]} position={[0, 0, 0]} material-color="#3b82f6" />
-        </group>
-      )}
-    </group>
-  )
-}
-
-
 function Pitch() {
   return (
     <group>
@@ -259,7 +276,118 @@ function PitchLine({ points }: { points: [number, number, number][] }) {
   return <Line points={vecs} color="white" lineWidth={2} opacity={0.7} transparent />
 }
 
-function GoalPosts() {
+function DynamicNet({
+  width,
+  height,
+  position,
+  rotation,
+  ballRef,
+}: {
+  width: number
+  height: number
+  position: [number, number, number]
+  rotation?: [number, number, number]
+  ballRef: React.MutableRefObject<THREE.Mesh>
+}) {
+  const meshRef = useRef<THREE.Mesh>(null!)
+  const initialPositions = useRef<Float32Array | null>(null)
+  const velocities = useRef<Float32Array | null>(null)
+  const worldPosVec = useMemo(() => new THREE.Vector3(), [])
+  const localPosVec = useMemo(() => new THREE.Vector3(), [])
+  
+  useEffect(() => {
+    if (meshRef.current) {
+      const geometry = meshRef.current.geometry
+      initialPositions.current = geometry.attributes.position.array.slice() as Float32Array
+      velocities.current = new Float32Array(initialPositions.current.length)
+    }
+  }, [])
+
+  useFrame((_, delta) => {
+    if (!meshRef.current || !initialPositions.current || !velocities.current || !ballRef.current) return
+    
+    const geometry = meshRef.current.geometry
+    const positions = geometry.attributes.position.array as Float32Array
+    const ballPos = ballRef.current.position
+
+    let needsUpdate = false
+    
+    // Physics parameters
+    const springK = 50.0 // Hooke's law spring constant
+    const damping = 0.9  // Velocity damping
+    const interactionRadius = 0.6 // How close the ball needs to be to affect vertices
+    
+    for (let i = 0; i < positions.length; i += 3) {
+      localPosVec.set(positions[i], positions[i + 1], positions[i + 2])
+      
+      // Convert local vertex to world space to check against ball
+      worldPosVec.copy(localPosVec)
+      worldPosVec.applyMatrix4(meshRef.current.matrixWorld)
+      
+      const dist = worldPosVec.distanceTo(ballPos)
+      
+      if (dist < interactionRadius) {
+        // Ball is hitting the net! Push the vertex outwards
+        const pushForce = (interactionRadius - dist) / interactionRadius
+        // Calculate direction from ball to vertex
+        const dirX = worldPosVec.x - ballPos.x
+        const dirY = worldPosVec.y - ballPos.y
+        const dirZ = worldPosVec.z - ballPos.z
+        
+        // Convert the push direction back to local space
+        const pushWorld = new THREE.Vector3(dirX, dirY, dirZ).normalize().multiplyScalar(pushForce * 5.0)
+        
+        // Add to velocity
+        velocities.current[i] += pushWorld.x * delta
+        velocities.current[i+1] += pushWorld.y * delta
+        velocities.current[i+2] += pushWorld.z * delta
+      }
+      
+      // Apply spring force towards initial position
+      const initX = initialPositions.current[i]
+      const initY = initialPositions.current[i+1]
+      const initZ = initialPositions.current[i+2]
+      
+      const dispX = localPosVec.x - initX
+      const dispY = localPosVec.y - initY
+      const dispZ = localPosVec.z - initZ
+      
+      velocities.current[i] -= dispX * springK * delta
+      velocities.current[i+1] -= dispY * springK * delta
+      velocities.current[i+2] -= dispZ * springK * delta
+      
+      // Apply damping
+      velocities.current[i] *= damping
+      velocities.current[i+1] *= damping
+      velocities.current[i+2] *= damping
+      
+      // Update position
+      const vx = velocities.current[i]
+      const vy = velocities.current[i+1]
+      const vz = velocities.current[i+2]
+      
+      if (Math.abs(vx) > 0.001 || Math.abs(vy) > 0.001 || Math.abs(vz) > 0.001 || Math.abs(dispX) > 0.001 || Math.abs(dispY) > 0.001 || Math.abs(dispZ) > 0.001) {
+        positions[i] += vx * delta
+        positions[i+1] += vy * delta
+        positions[i+2] += vz * delta
+        needsUpdate = true
+      }
+    }
+    
+    if (needsUpdate) {
+      geometry.attributes.position.needsUpdate = true
+    }
+  })
+
+  return (
+    <mesh ref={meshRef} position={position} rotation={rotation}>
+      <planeGeometry args={[width, height, 32, 16]} />
+      <meshStandardMaterial color="#e2e8f0" opacity={0.3} transparent side={THREE.DoubleSide} wireframe />
+    </mesh>
+  )
+}
+
+function GoalPosts({ ballRef }: { ballRef: React.MutableRefObject<THREE.Mesh> }) {
   const postRadius = 0.06
   const crossbarY = 2.44
   const halfWidth = 7.32 / 2
@@ -283,27 +411,15 @@ function GoalPosts() {
       </mesh>
       
       {/* Net Back */}
-      <mesh position={[0, crossbarY / 2, netDepth]}>
-        <planeGeometry args={[7.32, crossbarY]} />
-        <meshStandardMaterial color="white" transparent opacity={0.4} side={THREE.DoubleSide} />
-      </mesh>
+      <DynamicNet width={7.32} height={crossbarY} position={[0, crossbarY / 2, netDepth]} ballRef={ballRef} />
       {/* Net Left */}
-      <mesh position={[-halfWidth, crossbarY / 2, netDepth / 2]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[netDepth, crossbarY]} />
-        <meshStandardMaterial color="white" transparent opacity={0.4} side={THREE.DoubleSide} />
-      </mesh>
+      <DynamicNet width={netDepth} height={crossbarY} position={[-halfWidth, crossbarY / 2, netDepth / 2]} rotation={[0, Math.PI / 2, 0]} ballRef={ballRef} />
       {/* Net Right */}
-      <mesh position={[halfWidth, crossbarY / 2, netDepth / 2]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[netDepth, crossbarY]} />
-        <meshStandardMaterial color="white" transparent opacity={0.4} side={THREE.DoubleSide} />
-      </mesh>
+      <DynamicNet width={netDepth} height={crossbarY} position={[halfWidth, crossbarY / 2, netDepth / 2]} rotation={[0, Math.PI / 2, 0]} ballRef={ballRef} />
       {/* Net Top */}
-      <mesh position={[0, crossbarY, netDepth / 2]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[7.32, netDepth]} />
-        <meshStandardMaterial color="white" transparent opacity={0.4} side={THREE.DoubleSide} />
-      </mesh>
+      <DynamicNet width={7.32} height={netDepth} position={[0, crossbarY, netDepth / 2]} rotation={[-Math.PI / 2, 0, 0]} ballRef={ballRef} />
 
-      <Text position={[0, crossbarY + 0.5, 0]} fontSize={0.4} color="#1e6b38" anchorX="center" anchorY="bottom" font={undefined}>
+      <Text position={[0, crossbarY + 0.5, 0]} rotation={[0, Math.PI, 0]} fontSize={0.4} color="#1e6b38" anchorX="center" anchorY="bottom" font={undefined}>
         GOAL
       </Text>
     </group>
@@ -380,10 +496,13 @@ function DistanceMarkers() {
   return (
     <group>
       {distances.map((d) => (
-        <group key={d}>
-          <PitchLine points={[[-1, 0.02, d], [1, 0.02, d]]} />
-          <Text position={[2, 0.1, d]} fontSize={0.35} color="#94a3b8" anchorX="left" font={undefined}>
-            {d}m
+        <group key={d} position={[0, 0, d]}>
+          <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[10, 0.1]} />
+            <meshStandardMaterial color="#ffffff" opacity={0.3} transparent />
+          </mesh>
+          <Text position={[2, 0.1, 0]} rotation={[-Math.PI / 2, 0, Math.PI]} fontSize={0.35} color="#94a3b8" anchorX="right" font={undefined}>
+            {Math.abs(d)}m
           </Text>
         </group>
       ))}
@@ -391,8 +510,7 @@ function DistanceMarkers() {
   )
 }
 
-function TrajectoryAnimation({ trajectory, ghostTrajectory }: { trajectory: TrajectoryPoint[]; ghostTrajectory: TrajectoryPoint[] }) {
-  const ballRef = useRef<THREE.Mesh>(null!)
+function TrajectoryAnimation({ trajectory, ghostTrajectory, ballRef }: { trajectory: TrajectoryPoint[]; ghostTrajectory: TrajectoryPoint[]; ballRef: React.MutableRefObject<THREE.Mesh> }) {
   const [frameIndex, setFrameIndex] = useState(0)
   const [animating, setAnimating] = useState(true)
 
@@ -423,10 +541,7 @@ function TrajectoryAnimation({ trajectory, ghostTrajectory }: { trajectory: Traj
 
   return (
     <group>
-      <mesh ref={ballRef} position={[trajectory[0].x, trajectory[0].y, trajectory[0].z]} castShadow>
-        <sphereGeometry args={[0.11, 24, 24]} />
-        <meshStandardMaterial color="white" roughness={0.3} metalness={0.1} />
-      </mesh>
+      <SoccerBall ref={ballRef} position={[trajectory[0].x, trajectory[0].y, trajectory[0].z]} />
       {trailPoints.length >= 2 && <Line points={trailPoints} color="#f59e0b" lineWidth={3} opacity={0.9} transparent />}
       {!animating && pathPoints.length >= 2 && <Line points={pathPoints} color="#f59e0b" lineWidth={1.5} opacity={0.4} transparent />}
       {ghostPoints.length >= 2 && <Line points={ghostPoints} color="#94a3b8" lineWidth={1.5} opacity={0.35} transparent dashed dashSize={0.3} gapSize={0.15} />}
