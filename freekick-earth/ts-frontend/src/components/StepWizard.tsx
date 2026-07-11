@@ -85,13 +85,13 @@ export default function StepWizard() {
   // Cinematic sequence timing
   useEffect(() => {
     if (step === -1 && initLoaded) {
-      // Exterior view for 3s
-      const timer = setTimeout(() => setStep(-0.5), 3000) 
+      // Exterior view for 1s
+      const timer = setTimeout(() => setStep(-0.5), 1000) 
       return () => clearTimeout(timer)
     }
     if (step === -0.5) {
-      // Fly through tunnel for 2s
-      const timer = setTimeout(() => setStep(0), 2000)
+      // Fly through tunnel for 1s
+      const timer = setTimeout(() => setStep(0), 1000)
       return () => clearTimeout(timer)
     }
   }, [step, initLoaded])
