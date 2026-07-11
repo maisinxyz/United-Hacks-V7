@@ -204,7 +204,7 @@ input[type="range"] { width: 100%; accent-color: var(--color-pitch); }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background-image: linear-gradient(rgba(15, 23, 42, 0.6), rgba(15, 23, 42, 0.8)), url('/entrance_bg.png');
+  background-image: linear-gradient(rgba(15, 23, 42, 0.6), rgba(15, 23, 42, 0.8)), url('https://upload.wikimedia.org/wikipedia/commons/b/b1/MCG_at_night_from_Eureka_Tower.jpg');
   background-size: cover;
   background-position: center;
 }
