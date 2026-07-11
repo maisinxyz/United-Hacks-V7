@@ -1,10 +1,10 @@
 /**
  * StepWizard — Orchestrates the immersive UI flow.
- * New flow: Cinematic intro → Power → H-Aim → V-Aim → Curve → Kick Result
- * Stadium is randomly assigned by the backend via /game/init.
+ * 5-attempt free kick mode with random ball positions and scoreboard.
+ * Flow: Entrance → [Power → H-Aim → V-Aim → Curve → Result] × 5 → Game Over
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import EntranceScreen from './EntranceScreen'
 import PowerOverlay from './PowerOverlay'
 import HorizontalAngleOverlay from './HorizontalAngleOverlay'
@@ -38,35 +38,65 @@ const INITIAL_CONFIG: KickConfig = {
   spinAxisZ: 1,
 }
 
-// Steps: 
-// -2 = Entrance, 
-// -1 = Cinematic Exterior, 
-// -0.5 = Cinematic Tunnel Fly-through,
-// 0 = Power, 1 = H-Aim, 2 = V-Aim, 3 = Curve, 4 = Kick Result
-const STEP_COUNT = 5
+const MAX_ATTEMPTS = 5
 
-const CAMERA_CONFIGS: Record<number, CameraConfig> = {
-  [-2]: { position: [0, 30, -50], target: [0, 5, 0] },      // Entrance background
-  [-1]: { position: [0, 50, -130], target: [0, 10, 0] },    // Cinematic: far exterior
-  [-0.5]: { position: [0, 5, -20], target: [0, 1, 15] },  // Cinematic: tunnel fly-through
-  0: { position: [-3, 0.8, -2], target: [0.5, 0.11, 1.5] }, // Power: side/back view
-  1: { position: [0, 12, -8], target: [0, 0, 15] },       // H-Aim: tactical behind
-  2: { position: [-15, 3, 13], target: [0, 1, 13] },       // V-Aim: side view
-  3: { position: [0, 1.0, -2.5], target: [0, 0.11, 15] },  // Curve: behind ball
-  4: { position: [0, 8, -12], target: [0, 2, 15] },        // Kick: cinematic behind
+// Steps: -2 = Entrance, 0 = Power, 1 = H-Aim, 2 = V-Aim, 3 = Curve, 4 = Kick Result, 5 = Game Over
+const STEP_COUNT = 6
+
+/** Generate a random ball position outside the penalty box but inside the attacking half.
+ *  Penalty box: x ∈ [-9, 9], z ∈ [10, 27]. We pick outside that region.
+ *  x ∈ [-12, 12], z ∈ [2, 12] — varying distances from goal */
+function generateRandomPositions(count: number): [number, number][] {
+  const positions: [number, number][] = []
+  for (let i = 0; i < count; i++) {
+    const x = Math.round((Math.random() * 24 - 12) * 10) / 10  // -12 to 12
+    const z = Math.round((Math.random() * 10 + 2) * 10) / 10   // 2 to 12
+    positions.push([x, z])
+  }
+  return positions
+}
+
+/** Build camera configs offset by ball position */
+function getCameraConfig(step: number, bp: [number, number]): CameraConfig {
+  const [bx, bz] = bp
+  const configs: Record<number, CameraConfig> = {
+    [-2]: { position: [0, 30, -50], target: [0, 5, 0] },
+    0: { position: [bx - 3, 0.8, bz - 2], target: [bx + 0.5, 0.11, bz + 1.5] },
+    1: { position: [bx, 12, bz - 8], target: [bx, 0, (bz + 27) / 2] },
+    2: { position: [bx - 15, 3, (bz + 27) / 2], target: [bx, 1, (bz + 27) / 2] },
+    3: { position: [bx, 1.0, bz - 2.5], target: [bx, 0.11, (bz + 27) / 2] },
+    4: { position: [bx, 8, bz - 12], target: [0, 2, 15] },
+    5: { position: [0, 30, -20], target: [0, 0, 15] },
+  }
+  return configs[step] || configs[0]
 }
 
 export default function StepWizard() {
-  const [step, setStep] = useState(-2) // Start at Entrance
+  const [step, setStep] = useState(-2)
   const [config, setConfig] = useState<KickConfig>(INITIAL_CONFIG)
   const [simResult, setSimResult] = useState<SimulateResult | null>(null)
   const [previewTrajectory, setPreviewTrajectory] = useState<TrajectoryPoint[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [resultRevealed, setResultRevealed] = useState(false)
 
+  // 5-attempt game state
+  const [attemptIndex, setAttemptIndex] = useState(0)
+  const [attemptResults, setAttemptResults] = useState<('goal' | 'miss')[]>([])
+  const [score, setScore] = useState(0)
+  const [ballPositions, setBallPositions] = useState<[number, number][]>(() => generateRandomPositions(MAX_ATTEMPTS))
+  const [gameOver, setGameOver] = useState(false)
+
+  const currentBallPos = ballPositions[attemptIndex] || [0, 0]
+
   const handlePlay = async () => {
     setLoading(true)
     setResultRevealed(false)
+    setAttemptIndex(0)
+    setAttemptResults([])
+    setScore(0)
+    setGameOver(false)
+    const newPositions = generateRandomPositions(MAX_ATTEMPTS)
+    setBallPositions(newPositions)
     try {
       const init = await fetchGameInit()
       setConfig((prev) => ({
@@ -74,7 +104,7 @@ export default function StepWizard() {
         stadiumId: init.stadium.id,
         conditions: init.conditions,
       }))
-      setStep(0) // Go directly to power step
+      setStep(0)
     } catch (e) {
       console.error(e)
     } finally {
@@ -106,6 +136,8 @@ export default function StepWizard() {
           spin_axis_y: config.spinAxisY,
           spin_axis_z: config.spinAxisZ,
           conditions,
+          ball_start_x: currentBallPos[0],
+          ball_start_z: currentBallPos[1],
         })
         if (!isCancelled) setPreviewTrajectory(result.trajectory)
       } catch (e) {
@@ -118,7 +150,7 @@ export default function StepWizard() {
     return () => {
       isCancelled = true
     }
-  }, [step, config])
+  }, [step, config, currentBallPos])
 
   const next = () => setStep((s) => Math.min(s + 1, STEP_COUNT - 1))
   const back = () => setStep((s) => Math.max(s - 1, 0))
@@ -138,9 +170,11 @@ export default function StepWizard() {
         spin_axis_y: config.spinAxisY,
         spin_axis_z: config.spinAxisZ,
         conditions: config.conditions,
+        ball_start_x: currentBallPos[0],
+        ball_start_z: currentBallPos[1],
       })
       setSimResult(result)
-      setStep(4) // Go to result step
+      setStep(4)
     } catch (err) {
       console.error('Simulation failed:', err)
     } finally {
@@ -148,46 +182,88 @@ export default function StepWizard() {
     }
   }
 
-  const handleRestart = async () => {
+  // Record result when revealed
+  useEffect(() => {
+    if (step === 4 && resultRevealed && simResult && attemptResults.length === attemptIndex) {
+      const isGoal = simResult.result === 'goal'
+      setAttemptResults((prev) => [...prev, isGoal ? 'goal' : 'miss'])
+      if (isGoal) setScore((s) => s + 1)
+    }
+  }, [resultRevealed, step, simResult, attemptIndex, attemptResults.length])
+
+  const handleNextKick = () => {
+    const nextAttempt = attemptIndex + 1
+    if (nextAttempt >= MAX_ATTEMPTS) {
+      setGameOver(true)
+      setStep(5)
+      return
+    }
+    setAttemptIndex(nextAttempt)
+    setSimResult(null)
+    setPreviewTrajectory(null)
+    setResultRevealed(false)
+    // Reset kick params but keep stadium/conditions
+    setConfig((prev) => ({
+      ...prev,
+      power: INITIAL_CONFIG.power,
+      horizontalAngle: INITIAL_CONFIG.horizontalAngle,
+      verticalAngle: INITIAL_CONFIG.verticalAngle,
+      spinRate: INITIAL_CONFIG.spinRate,
+      spinAxisX: INITIAL_CONFIG.spinAxisX,
+      spinAxisY: INITIAL_CONFIG.spinAxisY,
+      spinAxisZ: INITIAL_CONFIG.spinAxisZ,
+    }))
+    setStep(0)
+  }
+
+  const handleRestart = () => {
     setStep(-2)
     setSimResult(null)
     setPreviewTrajectory(null)
     setResultRevealed(false)
+    setAttemptIndex(0)
+    setAttemptResults([])
+    setScore(0)
+    setGameOver(false)
     setConfig(INITIAL_CONFIG)
   }
+
+  const cameraConfig = useMemo(() => getCameraConfig(step, currentBallPos), [step, currentBallPos])
 
   return (
     <div className="wizard-container">
       <div className="scene-background">
         <PitchScene
-          camera={CAMERA_CONFIGS[step]}
+          camera={cameraConfig}
           trajectory={simResult?.trajectory}
           previewTrajectory={previewTrajectory}
           ghostTrajectory={previewTrajectory || undefined}
-          // keeperTrajectory={simResult?.keeper_trajectory}
           result={step === 4 && resultRevealed ? simResult?.result : undefined}
           resultVisible={step === 4 && resultRevealed}
-          dimmed={false} // Removed dimming to keep things bright
+          dimmed={false}
           stepIndex={step}
           config={config}
-          instantCamera={step === -2 || step === 0} // Snap to initial camera positions
+          instantCamera={step === -2 || step === 0}
           onTrajectoryComplete={() => setResultRevealed(true)}
+          ballPosition={currentBallPos}
         />
       </div>
 
       {step === -2 && <EntranceScreen onPlay={handlePlay} />}
 
-      {/* Stadium Badge — visible during exterior cinematic and kick prep steps */}
-      {(step === -1 || (step >= 0 && step <= 3)) && config.conditions && (
-        <StadiumBadge conditions={config.conditions} />
+      {/* Scoreboard — visible during gameplay (steps 0–5) */}
+      {step >= 0 && (
+        <Scoreboard
+          attemptResults={attemptResults}
+          attemptIndex={attemptIndex}
+          score={score}
+          maxAttempts={MAX_ATTEMPTS}
+        />
       )}
 
-      {/* Cinematic intro text (only show on -1 so it doesn't block tunnel run) */}
-      {step === -1 && (
-        <div className="cinematic-intro-bottom-left">
-          <h1>{config.conditions?.stadium.name}</h1>
-          <p>{config.conditions?.stadium.city}, {config.conditions?.stadium.country} • Altitude: {config.conditions?.stadium.altitude_meters}m</p>
-        </div>
+      {/* Stadium Badge — visible during kick prep steps */}
+      {(step >= 0 && step <= 3) && config.conditions && (
+        <StadiumBadge conditions={config.conditions} />
       )}
 
       <div className="overlay-container">
@@ -212,11 +288,68 @@ export default function StepWizard() {
                 <h2 className="result-miss">❌ MISSED</h2>
               )}
             </div>
+            {attemptIndex < MAX_ATTEMPTS - 1 ? (
+              <button className="wizard-btn try-again-btn" onClick={handleNextKick}>
+                Next Kick →
+              </button>
+            ) : (
+              <button className="wizard-btn try-again-btn" onClick={handleNextKick}>
+                See Final Score
+              </button>
+            )}
+          </div>
+        )}
+        {step === 5 && gameOver && (
+          <div className="game-over-screen">
+            <h1 className="game-over-title">Final Score</h1>
+            <div className="game-over-score">{score} / {MAX_ATTEMPTS}</div>
+            <div className="game-over-circles">
+              {attemptResults.map((r, i) => (
+                <span key={i} className={`score-circle ${r === 'goal' ? 'goal' : 'miss'}`} />
+              ))}
+            </div>
+            <p className="game-over-message">
+              {score === MAX_ATTEMPTS ? '🏆 Perfect! You scored every one!' :
+               score >= 3 ? '🎉 Great shooting!' :
+               score >= 1 ? '👍 Not bad, try again!' :
+               '😅 Better luck next time!'}
+            </p>
             <button className="wizard-btn try-again-btn" onClick={handleRestart}>
-              🔄 Try Again
+              🔄 Play Again
             </button>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+/** Scoreboard with 5 circles and running score */
+function Scoreboard({ attemptResults, attemptIndex, score, maxAttempts }: {
+  attemptResults: ('goal' | 'miss')[]
+  attemptIndex: number
+  score: number
+  maxAttempts: number
+}) {
+  return (
+    <div className="scoreboard">
+      <div className="scoreboard-points">
+        <span className="scoreboard-label">Score</span>
+        <span className="scoreboard-value">{score}</span>
+      </div>
+      <div className="scoreboard-circles">
+        {Array.from({ length: maxAttempts }).map((_, i) => {
+          let cls = 'score-circle'
+          if (i < attemptResults.length) {
+            cls += attemptResults[i] === 'goal' ? ' goal' : ' miss'
+          } else if (i === attemptIndex) {
+            cls += ' current'
+          }
+          return <span key={i} className={cls} />
+        })}
+      </div>
+      <div className="scoreboard-attempt">
+        Kick {Math.min(attemptIndex + 1, maxAttempts)} / {maxAttempts}
       </div>
     </div>
   )

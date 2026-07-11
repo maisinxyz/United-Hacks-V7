@@ -56,6 +56,8 @@ export interface SimulateParams {
   spin_axis_y: number
   spin_axis_z: number
   conditions: StadiumConditions
+  ball_start_x?: number
+  ball_start_z?: number
 }
 
 export interface GameInitResult {

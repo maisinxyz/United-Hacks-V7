@@ -116,6 +116,8 @@ class SimulateRequest(BaseModel):
     spin_axis_y: float = 1.0
     spin_axis_z: float = 0.0
     conditions: ConditionsOut
+    ball_start_x: float = 0.0  # lateral offset from centre
+    ball_start_z: float = 0.0  # forward offset from default kick spot
 
 class TrajectoryPoint(BaseModel):
     x: float
@@ -398,6 +400,8 @@ async def simulate(req: SimulateRequest):
     conditions = req.conditions
 
     spin_axis = (req.spin_axis_x, req.spin_axis_y, req.spin_axis_z)
+    bsx = req.ball_start_x
+    bsz = req.ball_start_z
 
     # --- Actual trajectory (real conditions) ---
     actual = _run_simulation(
@@ -422,6 +426,15 @@ async def simulate(req: SimulateRequest):
         wind_speed=0.0,
         wind_dir_deg=0.0,
     )
+
+    # Offset trajectory points by ball starting position
+    if bsx != 0.0 or bsz != 0.0:
+        for pt in actual:
+            pt.x = round(pt.x + bsx, 4)
+            pt.z = round(pt.z + bsz, 4)
+        for pt in ghost:
+            pt.x = round(pt.x + bsx, 4)
+            pt.z = round(pt.z + bsz, 4)
 
     result = _classify_result(actual)
 

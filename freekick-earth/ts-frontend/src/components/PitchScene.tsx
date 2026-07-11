@@ -30,6 +30,7 @@ interface Props {
   config: KickConfig
   instantCamera?: boolean
   onTrajectoryComplete?: () => void
+  ballPosition?: [number, number]  // [x, z] offset for ball placement
 }
 
 export default function PitchScene({
@@ -45,6 +46,7 @@ export default function PitchScene({
   config,
   instantCamera = false,
   onTrajectoryComplete,
+  ballPosition = [0, 0],
 }: Props) {
   const ballRef = useRef<THREE.Mesh>(null!)
   const [triggerRecenter, setTriggerRecenter] = useState(0)
@@ -89,14 +91,14 @@ export default function PitchScene({
         <GoalPosts ballRef={ballRef} />
         <DistanceMarkers />
 
-        {/* Ball at origin when no trajectory */}
+        {/* Ball at starting position when no trajectory */}
         {(!trajectory || trajectory.length === 0) && (
-          <StaticBall />
+          <StaticBall position={ballPosition} />
         )}
 
         {/* Live Preview line for Angles (Steps 1 and 2) */}
         {(stepIndex === 1 || stepIndex === 2) && (
-          <AimPreview config={config} />
+          <AimPreview config={config} ballPosition={ballPosition} />
         )}
 
         {/* Live Spin Arrows for Spin (Step 3) */}
@@ -199,14 +201,14 @@ const SoccerBall = forwardRef<THREE.Mesh, any>((props, ref) => {
   )
 })
 
-function StaticBall() {
-  return <SoccerBall position={[0, 0.11, 0]} />
+function StaticBall({ position = [0, 0] }: { position?: [number, number] }) {
+  return <SoccerBall position={[position[0], 0.11, position[1]]} />
 }
 
 // ---------------------------------------------------------------
 // Aim Preview Line
 // ---------------------------------------------------------------
-function AimPreview({ config }: { config: KickConfig }) {
+function AimPreview({ config, ballPosition = [0, 0] }: { config: KickConfig; ballPosition?: [number, number] }) {
   const points = useMemo(() => {
     const pts = []
     const radH = (-config.horizontalAngle * Math.PI) / 180 // -x is left
@@ -215,13 +217,13 @@ function AimPreview({ config }: { config: KickConfig }) {
     for (let i = 0; i <= 20; i++) {
       const t = i / 20
       const distance = t * 15 // project out 15 meters
-      const x = distance * Math.sin(radH)
-      const z = distance * Math.cos(radH)
+      const x = ballPosition[0] + distance * Math.sin(radH)
+      const z = ballPosition[1] + distance * Math.cos(radH)
       const y = 0.11 + distance * Math.tan(radV) - (0.5 * 9.8 * Math.pow(distance / 20, 2))
       pts.push(new THREE.Vector3(x, Math.max(0.11, y), z))
     }
     return pts
-  }, [config.horizontalAngle, config.verticalAngle])
+  }, [config.horizontalAngle, config.verticalAngle, ballPosition])
 
   return (
     <Line points={points} color="#f59e0b" lineWidth={3} dashed dashSize={0.5} gapSize={0.2} opacity={0.8} transparent />
