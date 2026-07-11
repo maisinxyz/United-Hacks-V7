@@ -74,27 +74,13 @@ export default function StepWizard() {
         conditions: init.conditions,
       }))
       setInitLoaded(true)
-      setStep(-1) // Start cinematic sequence
+      setStep(0) // Go directly to power step
     } catch (e) {
       console.error(e)
     } finally {
       setLoading(false)
     }
   }
-
-  // Cinematic sequence timing
-  useEffect(() => {
-    if (step === -1 && initLoaded) {
-      // Exterior view for 1s
-      const timer = setTimeout(() => setStep(-0.5), 1000) 
-      return () => clearTimeout(timer)
-    }
-    if (step === -0.5) {
-      // Fly through tunnel for 1s
-      const timer = setTimeout(() => setStep(0), 1000)
-      return () => clearTimeout(timer)
-    }
-  }, [step, initLoaded])
 
   const updateConfig = useCallback(
     (patch: Partial<KickConfig>) => setConfig((prev) => ({ ...prev, ...patch })),
@@ -179,7 +165,7 @@ export default function StepWizard() {
           dimmed={false} // Removed dimming to keep things bright
           stepIndex={step}
           config={config}
-          instantCamera={step === -2 || step === -1} // Snap to initial camera positions
+          instantCamera={step === -2 || step === 0} // Snap to initial camera positions
         />
       </div>
 
