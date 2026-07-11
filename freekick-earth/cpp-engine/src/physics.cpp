@@ -138,43 +138,142 @@ static SimState rk4_step(const SimState& s,
 std::vector<BallState> simulate_trajectory(const KickParams& kick,
                                            const Environment& env) {
     std::vector<BallState> trajectory;
-    trajectory.reserve(1024);
+    trajectory.reserve(2000); // Increased for longer rolling
 
     const double dt = TIMESTEP;
 
-    // Initial state
     BallState state;
-    state.position         = {0.0, 0.0, 0.0};  // kick taken at origin
+    state.position         = {0.0, 0.111, 0.0};  // Kick taken at origin, y = 0.111 (just above ground radius)
     state.velocity         = kick.initial_velocity;
     state.angular_velocity = kick.initial_spin;
     state.time             = 0.0;
 
     trajectory.push_back(state);
 
-    // Simulate until the ball hits the ground or we exceed a
-    // safety limit (prevents infinite loops on edge cases).
-    constexpr int MAX_FRAMES = 10000;  // ~160 seconds at 60 Hz
+    constexpr int MAX_FRAMES = 20000;
+    
+    // Physical constants for bouncing/rolling
+    const double COEFF_RESTITUTION = 0.65; // Retained vertical speed
+    const double KINETIC_FRICTION = 0.85; // Retained horizontal speed on bounce
+    const double ROLL_FRICTION = 3.0; // Deceleration in m/s^2
+    const double BOUNCE_THRESHOLD = 0.5; // Minimum v_y to bounce
+
+    // State machine
+    bool is_rolling = false;
 
     for (int i = 0; i < MAX_FRAMES; ++i) {
-        SimState current{state.position, state.velocity};
-
-        // Advance physics one step
-        SimState next = rk4_step(current, state.angular_velocity, env, dt);
-
-        state.position = next.pos;
-        state.velocity = next.vel;
-        state.time    += dt;
-        // Angular velocity stays constant (no spin decay for simplicity)
-
-        trajectory.push_back(state);
-
-        // Stop when ball hits the ground (after at least one frame of flight)
-        if (state.position.y < 0.0 && i > 0) {
-            // Clamp Y to ground level on the final frame
-            state.position.y = 0.0;
-            trajectory.back().position.y = 0.0;
-            break;
+        if (!is_rolling) {
+            // Airborne physics
+            SimState current{state.position, state.velocity};
+            SimState next = rk4_step(current, state.angular_velocity, env, dt);
+            
+            state.position = next.pos;
+            state.velocity = next.vel;
+        } else {
+            // Rolling physics (on ground)
+            state.position = state.position + state.velocity * dt;
+            
+            // Apply rolling friction
+            double speed = state.velocity.magnitude();
+            if (speed > 0) {
+                Vector3D dir = state.velocity.normalized();
+                double new_speed = speed - ROLL_FRICTION * dt;
+                if (new_speed <= 0) {
+                    state.velocity = {0.0, 0.0, 0.0};
+                    break; // Ball has completely stopped
+                } else {
+                    state.velocity = dir * new_speed;
+                }
+            }
         }
+
+        // Goal Net Collision Detection
+        // If the ball crosses the goal line (z >= 27.0) AND it went through the goal mouth
+        // (we assume if it is past 27 and within x/y bounds, it's in the net.
+        // We use generous outer bounds to prevent high-speed tunneling).
+        if (state.position.z > 27.0 && state.position.z < 35.0 && 
+            state.position.x > -4.5 && state.position.x < 4.5 && 
+            state.position.y < 3.0) {
+            
+            bool hit_net = false;
+            
+            // Check if it's roughly inside the goal mouth or already in the net
+            if (state.position.x >= -3.66 && state.position.x <= 3.66 && state.position.y <= 2.44) {
+                
+                // Back net
+                if (state.position.z > 29.0 - 0.11) {
+                    state.position.z = 29.0 - 0.11;
+                    if (state.velocity.z > 0) state.velocity.z = -state.velocity.z * 0.2;
+                    hit_net = true;
+                }
+                // Left net
+                if (state.position.x < -3.66 + 0.11) {
+                    state.position.x = -3.66 + 0.11;
+                    if (state.velocity.x < 0) state.velocity.x = -state.velocity.x * 0.2;
+                    hit_net = true;
+                }
+                // Right net
+                if (state.position.x > 3.66 - 0.11) {
+                    state.position.x = 3.66 - 0.11;
+                    if (state.velocity.x > 0) state.velocity.x = -state.velocity.x * 0.2;
+                    hit_net = true;
+                }
+                // Top net
+                if (state.position.y > 2.44 - 0.11) {
+                    state.position.y = 2.44 - 0.11;
+                    if (state.velocity.y > 0) state.velocity.y = -state.velocity.y * 0.2;
+                    hit_net = true;
+                }
+                
+                if (hit_net) {
+                    // Net absorbs most energy
+                    state.velocity.x *= 0.5;
+                    state.velocity.y -= 2.0 * dt; // Gravity pulls it down faster
+                    state.angular_velocity = state.angular_velocity * 0.1; // kills spin
+                }
+            }
+        }
+
+        // Ground Collision Detection
+        if (state.position.y <= 0.11) { // 0.11 is the ball radius
+            state.position.y = 0.11;
+            
+            if (!is_rolling && state.velocity.y < 0) { // Only collide if falling!
+                if (state.velocity.y < -BOUNCE_THRESHOLD) {
+                    // BOUNCE
+                    state.velocity.y = -state.velocity.y * COEFF_RESTITUTION;
+                    
+                    // Horizontal friction
+                    state.velocity.x *= KINETIC_FRICTION;
+                    state.velocity.z *= KINETIC_FRICTION;
+                    
+                    // Simple Spin interaction (Topspin +X accelerates Z, Backspin -X decelerates Z)
+                    // Angular velocity is rad/s. A spin of 10 rad/s * 0.11m = 1.1 m/s surface speed
+                    double surface_speed_z = state.angular_velocity.x * BALL_RADIUS;
+                    // Transfer some of this spin surface speed into linear velocity
+                    state.velocity.z += surface_speed_z * 0.2;
+                    
+                    double surface_speed_x = -state.angular_velocity.z * BALL_RADIUS;
+                    state.velocity.x += surface_speed_x * 0.2;
+                    
+                    // Decay spin on bounce
+                    state.angular_velocity = state.angular_velocity * 0.7;
+                    
+                } else {
+                    // START ROLLING
+                    is_rolling = true;
+                    state.velocity.y = 0.0;
+                }
+            }
+        }
+
+        state.time += dt;
+        
+        // Add to trajectory (every N frames if we want to save space, but UI handles all)
+        trajectory.push_back(state);
+        
+        // Failsafe exit
+        if (state.time > 20.0) break;
     }
 
     return trajectory;
