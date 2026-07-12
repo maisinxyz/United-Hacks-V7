@@ -2,7 +2,7 @@
  * MultiplayerWizard — WebSocket-driven multiplayer flow.
  */
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import PowerOverlay from './PowerOverlay'
 import HorizontalAngleOverlay from './HorizontalAngleOverlay'
 import VerticalAngleOverlay from './VerticalAngleOverlay'
@@ -41,7 +41,10 @@ const MAX_ATTEMPTS = 5
 const STEP_COUNT = 7
 
 function getCameraConfig(step: number, bp: [number, number], role?: string | null): CameraConfig {
-  if (role === 'goalkeeper' && step >= 0 && step <= 5) {
+  if (role === 'goalkeeper' && step >= 4.5 && step <= 5) {
+    return { position: [0, 2.0, 34.5], target: [0, 1.15, 27] }
+  }
+  if (role === 'goalkeeper' && step >= 0 && step <= 4.4) {
     const [bx, bz] = bp
     return { position: [0, 1.8, 28], target: [bx, 0.5, bz] }
   }
@@ -54,7 +57,7 @@ function getCameraConfig(step: number, bp: [number, number], role?: string | nul
     2: { position: [bx - 15, 3, (bz + 27) / 2], target: [bx, 1, (bz + 27) / 2] },
     3: { position: [bx, 1.0, bz - 2.5], target: [bx, 0.11, (bz + 27) / 2] },
     4: { position: [bx, 1.0, bz - 2.5], target: [bx, 0.11, (bz + 27) / 2] },
-    5: { position: [bx, 8, bz - 12], target: [0, 2, 15] },
+    5: { position: [0, 2.2, 38], target: [0, 1.2, 27] },
     6: { position: [0, 30, -20], target: [0, 0, 15] },
   }
   return configs[step] || configs[0]
@@ -98,6 +101,8 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
   const [history, setHistory] = useState<string[]>([])
   const [gameOver, setGameOver] = useState(false)
   const [targetCoords, setTargetCoords] = useState<[number, number] | null>(null)
+  const [keeperFeedback, setKeeperFeedback] = useState<'save' | 'goal' | null>(null)
+  const keeperTargetTimerRef = useRef<number | null>(null)
 
   const isMyTurn = currentTurn === myId
   const currentBallPos = ballPositions[round] || [0, 0]
@@ -149,6 +154,14 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
             if (data.target_x !== undefined && data.target_y !== undefined) {
               setTargetCoords([data.target_x, data.target_y])
             }
+            setKeeperFeedback(null)
+            if (keeperTargetTimerRef.current) {
+              window.clearTimeout(keeperTargetTimerRef.current)
+            }
+            keeperTargetTimerRef.current = window.setTimeout(() => {
+              setTargetCoords(null)
+              keeperTargetTimerRef.current = null
+            }, 800)
             setStep(4.5)
             break
             
@@ -199,6 +212,14 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
             break
             
           case 'shot_result':
+            if (data.result === 'save') {
+              setKeeperFeedback('save')
+              if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                navigator.vibrate?.([35, 40, 35])
+              }
+            } else if (data.result === 'goal') {
+              setKeeperFeedback('goal')
+            }
             setSimResult({
               trajectory: data.trajectory,
               ghost_trajectory: [], // Simplified
@@ -285,6 +306,9 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
   }
 
   const handleKeeperReaction = (x: number, y: number) => {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate?.(20)
+    }
     ws?.send(JSON.stringify({ type: 'keeper_reaction', x, y }))
     setStep(4.6)
   }
@@ -416,7 +440,14 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
       )
     }
   } else {
-    uiContent = <GoalKeeperScreen stadiumName={stadium?.name} step={step} onReact={handleKeeperReaction} />
+    uiContent = (
+      <GoalKeeperScreen
+        stadiumName={stadium?.name}
+        step={step}
+        outcome={keeperFeedback}
+        onReact={handleKeeperReaction}
+      />
+    )
   }
 
   return (
@@ -424,6 +455,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
       <div className="scene-background">
         <PitchScene
           camera={cameraConfig}
+          cameraFov={step >= 4.5 ? 28 : 55}
           trajectory={simResult?.trajectory}
           previewTrajectory={previewTrajectory}
           ghostTrajectory={previewTrajectory || undefined}
@@ -435,9 +467,10 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
           instantCamera={step === -2 || step === -1 || step === 5}
           onTrajectoryComplete={() => setResultRevealed(true)}
           ballPosition={currentBallPos}
-          isLocked={step === 4.5 && myRole === 'goalkeeper'}
-          targetCoords={step === 4.5 && myRole === 'goalkeeper' ? targetCoords : null}
+          isLocked={step >= 4.5 && myRole === 'goalkeeper'}
+          targetCoords={step >= 4.5 && step <= 5 && myRole === 'goalkeeper' ? targetCoords : null}
           onReact={step === 4.5 && myRole === 'goalkeeper' ? handleKeeperReaction : undefined}
+          cleanGoalView={step >= 4.5}
         />
       </div>
 
@@ -489,7 +522,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
         {step === 5 && simResult && resultRevealed && (
           <div className="result-actions">
             <div className="result-banner">
-              {simResult.result === 'goal' ? <h2 className="result-goal" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(74, 222, 128, 0.5)' }}>⚽ GOAL!</h2> : <h2 className="result-miss" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(248, 113, 113, 0.5)' }}>❌ MISSED</h2>}
+              {simResult.result === 'goal' ? <h2 className="result-goal" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(74, 222, 128, 0.5)' }}>⚽ GOAL!</h2> : simResult.result === 'save' ? <h2 className="result-goal" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(74, 222, 128, 0.5)' }}>🧤 SAVED!</h2> : <h2 className="result-miss" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(248, 113, 113, 0.5)' }}>❌ MISSED</h2>}
             </div>
             <button className="wizard-btn try-again-btn" onClick={handleNextKick}>
               {round < MAX_ATTEMPTS - 1 ? 'Continue →' : 'See Final Score'}

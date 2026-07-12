@@ -22,6 +22,7 @@ export interface CameraConfig {
 
 interface Props {
   camera: CameraConfig
+  cameraFov?: number
   trajectory?: TrajectoryPoint[]
   previewTrajectory?: TrajectoryPoint[] | null
   ghostTrajectory?: TrajectoryPoint[]
@@ -37,6 +38,7 @@ interface Props {
   isLocked?: boolean
   targetCoords?: [number, number] | null
   onReact?: (x: number, y: number) => void
+  cleanGoalView?: boolean
 }
 
 export default function PitchScene({
@@ -56,6 +58,8 @@ export default function PitchScene({
   isLocked = false,
   targetCoords,
   onReact,
+  cleanGoalView = false,
+  cameraFov = 55,
 }: Props) {
   const ballRef = useRef<THREE.Mesh>(null!)
   const [triggerRecenter, setTriggerRecenter] = useState(0)
@@ -102,7 +106,7 @@ export default function PitchScene({
       <Canvas
         camera={{
           position: camera.position,
-          fov: 55,
+          fov: cameraFov,
           near: 0.1,
           far: 500,
         }}
@@ -113,7 +117,7 @@ export default function PitchScene({
           position={camera.position}
           instant={instantCamera}
           triggerRecenter={triggerRecenter}
-          trackBall={stepIndex === 5}
+          trackBall={false}
           ballRef={ballRef}
           isLocked={isLocked}
         />
@@ -145,7 +149,7 @@ export default function PitchScene({
         <Cloud position={[0, 70, -120]} speed={0.1} opacity={0.6} segments={30} scale={3} />
         
         {/* Birds */}
-        <Birds />
+        {!cleanGoalView && <Birds />}
 
         {/* Defensive Wall */}
         <DefensiveWall ballPosition={ballPosition} isShooting={(trajectory && trajectory.length > 0) || false} />
@@ -154,7 +158,7 @@ export default function PitchScene({
         <Grass windSpeed={config.conditions?.wind_speed_m_s} windDirection={config.conditions?.wind_direction_deg} />
         
         {/* Sideline NPCs */}
-        {stepIndex >= 0 && (
+        {!cleanGoalView && stepIndex >= 0 && (
           <group>
             <Coach position={[-29, 0, 6]} rotation={[0, Math.PI/2, 0]} />
             <PlayerWarmup position={[-29, 0, 2]} rotation={[0, Math.PI/2, 0]} offset={0} />
@@ -169,9 +173,9 @@ export default function PitchScene({
           </group>
         )}
 
-        <ArenaEnvironment stadiumId={config.stadiumId} hideRoof={stepIndex < 0} />
-        {stepIndex < 0 && <BCPlace />}
-        {config.conditions && (
+        <ArenaEnvironment stadiumId={config.stadiumId} hideRoof={stepIndex < 0} keeperView={cleanGoalView} />
+        {!cleanGoalView && stepIndex < 0 && <BCPlace />}
+        {!cleanGoalView && config.conditions && (
           <>
             <WindParticles speed={config.conditions.wind_speed_m_s} direction={config.conditions.wind_direction_deg} />
             <CornerFlag speed={config.conditions.wind_speed_m_s} direction={config.conditions.wind_direction_deg} />
@@ -179,8 +183,8 @@ export default function PitchScene({
         )}
         <GoalPosts ballRef={ballRef} />
         <ReactionGoalPlane onReact={onReact} targetCoords={targetCoords} />
-        <GoalPosts ballRef={ballRef} isNorth />
-        <DistanceMarkers />
+        {!cleanGoalView && <GoalPosts ballRef={ballRef} isNorth />}
+        {!cleanGoalView && <DistanceMarkers />}
 
         {/* Ball at starting position when no trajectory */}
         {(!trajectory || trajectory.length === 0) && (
@@ -416,10 +420,16 @@ function ReactionGoalPlane({ onReact, targetCoords }: { onReact?: (x: number, y:
       
       {/* Target indicator */}
       {targetCoords && (
-        <mesh position={[targetCoords[0], targetCoords[1], -0.1]}>
-          <ringGeometry args={[0.2, 0.3, 32]} />
-          <meshBasicMaterial color="#ef4444" side={THREE.DoubleSide} transparent opacity={0.8} />
-        </mesh>
+        <group position={[targetCoords[0], targetCoords[1], -0.1]}>
+          <mesh>
+            <ringGeometry args={[0.22, 0.34, 32]} />
+            <meshBasicMaterial color="#ef4444" side={THREE.DoubleSide} transparent opacity={0.95} />
+          </mesh>
+          <mesh>
+            <circleGeometry args={[0.08, 24]} />
+            <meshBasicMaterial color="#fff7ed" side={THREE.DoubleSide} transparent opacity={0.95} />
+          </mesh>
+        </group>
       )}
     </group>
   )
@@ -694,12 +704,22 @@ function GoalPosts({ ballRef, isNorth = false }: { ballRef: React.MutableRefObje
 // Procedural Arena — per-stadium 3D models
 // ---------------------------------------------------------------
 
-function ArenaEnvironment({ stadiumId, hideRoof = false }: { stadiumId: string; hideRoof?: boolean }) {
+function isKeeperObstructionPrimitive(p: any) {
+  if (!p || !p.color || !p.pos || !Array.isArray(p.pos)) return false
+  const color = String(p.color).toLowerCase()
+  const x = Number(p.pos[0])
+  const z = Number(p.pos[2])
+  const isDark = ['#000000', '#111111', '#1f2937', '#27272a', '#374151'].includes(color)
+  return isDark && Math.abs(x) < 28 && z > 22
+}
+
+function ArenaEnvironment({ stadiumId, hideRoof = false, keeperView = false }: { stadiumId: string; hideRoof?: boolean; keeperView?: boolean }) {
   const primitives = getStadiumPrimitives(stadiumId, hideRoof)
 
   return (
     <group position={[0, 0, -22.75]} scale={[1, 1, 1.75]}>
       {primitives.map((p: any, i: number) => {
+        if (keeperView && isKeeperObstructionPrimitive(p)) return null
         if (p.type === 'cylinder') {
           return (
             <mesh key={i} position={new THREE.Vector3(...p.pos)} rotation={new THREE.Euler(...p.rot)} receiveShadow castShadow>

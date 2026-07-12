@@ -75,7 +75,7 @@ function getCameraConfig(step: number, bp: [number, number]): CameraConfig {
     2: { position: [bx - 15, 3, (bz + 27) / 2], target: [bx, 1, (bz + 27) / 2] },
     3: { position: [bx, 1.0, bz - 2.5], target: [bx, 0.11, (bz + 27) / 2] },
     4: { position: [bx, 1.0, bz - 2.5], target: [bx, 0.11, (bz + 27) / 2] }, // Timing: same as curve
-    5: { position: [bx, 8, bz - 12], target: [0, 2, 15] }, // Result
+    5: { position: [0, 2.2, 38], target: [0, 1.2, 27] }, // Result: goalmouth view
     6: { position: [0, 30, -20], target: [0, 0, 15] }, // Game Over
   }
   return configs[step] || configs[0]
@@ -271,6 +271,7 @@ export default function StepWizard({ onMultiplayerMode }: StepWizardProps = {}) 
       <div className="scene-background">
         <PitchScene
           camera={cameraConfig}
+          cameraFov={step === 5 ? 34 : 55}
           trajectory={simResult?.trajectory}
           previewTrajectory={previewTrajectory}
           ghostTrajectory={previewTrajectory || undefined}
@@ -282,6 +283,7 @@ export default function StepWizard({ onMultiplayerMode }: StepWizardProps = {}) 
           instantCamera={step === -2 || step === -1 || step === 5}
           onTrajectoryComplete={() => setResultRevealed(true)}
           ballPosition={currentBallPos}
+          cleanGoalView={step === 5}
         />
       </div>
 
