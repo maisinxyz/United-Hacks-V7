@@ -519,6 +519,7 @@ class Room:
     def __init__(self, code: str):
         self.code = code
         self.players: Dict[str, dict] = {} # client_id -> { "ws": WebSocket, "score": 0, "name": str, "connected": bool }
+        self.roles: Dict[str, str] = {} # "kicker" -> client_id, "goalkeeper" -> client_id
         self.stadium: Optional[StadiumOut] = None
         self.conditions: Optional[ConditionsOut] = None
         self.ball_positions: List[List[float]] = []
@@ -574,43 +575,17 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, client_id: st
 
     try:
         if len(room.players) == 2 and room.round == 0 and not room.stadium:
-            # Initialize game
-            stadium_data = random.choice(STADIUMS_LIST)
-            stadium_out = StadiumOut(**stadium_data)
-            room.stadium = stadium_out
-            
-            # Use fixed standard conditions to avoid extra complex logic
-            room.conditions = ConditionsOut(
-                stadium=stadium_out,
-                temperature_celsius=20.0,
-                pressure_hpa=1013.25,
-                humidity_percent=50.0,
-                wind_speed_m_s=0.0,
-                wind_direction_deg=0.0,
-                air_density=1.225,
-                data_source="randomized"
-            )
-            # Generate 5 ball positions
-            for _ in range(5):
-                bx = round(random.uniform(-12, 12), 1)
-                bz = round(random.uniform(2, 12), 1)
-                room.ball_positions.append([bx, bz])
-            
-            room.current_turn = list(room.players.keys())[0] # Player 1 starts
-            
+            # Need role selection
             await manager.broadcast(room, {
-                "type": "game_start",
-                "stadium": room.stadium.model_dump(),
-                "conditions": room.conditions.model_dump(),
-                "ball_positions": room.ball_positions,
-                "turn": room.current_turn,
-                "players": {pid: {"name": p["name"], "score": p["score"]} for pid, p in room.players.items()}
+                "type": "role_selection",
+                "roles": room.roles
             })
         else:
             # Just send state
             state_msg = {
                 "type": "room_state",
                 "players": {pid: {"name": p["name"], "score": p["score"], "connected": p["connected"]} for pid, p in room.players.items()},
+                "roles": room.roles
             }
             if room.stadium:
                 state_msg.update({
@@ -624,7 +599,52 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, client_id: st
 
         while True:
             data = await websocket.receive_json()
-            if data["type"] == "take_shot":
+            if data["type"] == "select_role":
+                role = data["role"]
+                if role not in room.roles:
+                    for r, cid in list(room.roles.items()):
+                        if cid == client_id:
+                            del room.roles[r]
+                    room.roles[role] = client_id
+                    
+                    await manager.broadcast(room, {
+                        "type": "role_update",
+                        "roles": room.roles
+                    })
+                    
+                    if "kicker" in room.roles and "goalkeeper" in room.roles and room.round == 0 and not room.stadium:
+                        # Initialize game
+                        stadium_data = random.choice(STADIUMS_LIST)
+                        stadium_out = StadiumOut(**stadium_data)
+                        room.stadium = stadium_out
+                        
+                        room.conditions = ConditionsOut(
+                            stadium=stadium_out,
+                            temperature_celsius=20.0,
+                            pressure_hpa=1013.25,
+                            humidity_percent=50.0,
+                            wind_speed_m_s=0.0,
+                            wind_direction_deg=0.0,
+                            air_density=1.225,
+                            data_source="randomized"
+                        )
+                        for _ in range(5):
+                            bx = round(random.uniform(-12, 12), 1)
+                            bz = round(random.uniform(2, 12), 1)
+                            room.ball_positions.append([bx, bz])
+                        
+                        room.current_turn = room.roles["kicker"] # Kicker starts
+                        
+                        await manager.broadcast(room, {
+                            "type": "game_start",
+                            "stadium": room.stadium.model_dump(),
+                            "conditions": room.conditions.model_dump(),
+                            "ball_positions": room.ball_positions,
+                            "turn": room.current_turn,
+                            "players": {pid: {"name": p["name"], "score": p["score"]} for pid, p in room.players.items()}
+                        })
+                        
+            elif data["type"] == "take_shot":
                 req = SimulateRequest(**data["params"])
                 
                 spin_axis = (req.spin_axis_x, req.spin_axis_y, req.spin_axis_z)

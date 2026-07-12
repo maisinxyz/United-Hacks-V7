@@ -24,8 +24,8 @@ export default function EntranceScreen({ onPlaySingle, onPlayMulti }: Props) {
               <button className="wizard-btn primary huge" onClick={onPlaySingle} style={{ boxShadow: 'none', marginBottom: '1rem' }}>
                 ▶ SINGLE PLAYER
               </button>
-              <button className="wizard-btn secondary huge" onClick={() => setMode('multi')} style={{ boxShadow: 'none' }}>
-                🌐 MULTIPLAYER
+              <button className="wizard-btn huge" onClick={() => setMode('multi')} style={{ boxShadow: 'none', background: '#64748b', color: 'white', border: 'none' }}>
+                MULTIPLAYER
               </button>
               <div className="future-buttons">
                 <button className="wizard-btn outline small" disabled>Tutorial (Coming Soon)</button>
@@ -36,24 +36,24 @@ export default function EntranceScreen({ onPlaySingle, onPlayMulti }: Props) {
 
           {mode === 'multi' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
-              <button className="wizard-btn primary huge" onClick={() => onPlayMulti('create')} style={{ boxShadow: 'none', width: '100%' }}>
-                ➕ CREATE ROOM
+              <button className="wizard-btn huge" onClick={() => onPlayMulti('create')} style={{ boxShadow: 'none', width: '100%', background: '#3b82f6', color: 'white', border: 'none' }}>
+                CREATE ROOM
               </button>
               
-              <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
                 <input 
                   type="text" 
                   placeholder="ROOM CODE" 
                   value={roomCode}
                   onChange={e => setRoomCode(e.target.value.toUpperCase())}
                   maxLength={4}
-                  style={{ flex: 1, padding: '12px', fontSize: '1.2rem', textAlign: 'center', borderRadius: '8px', border: '2px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.5)', color: 'white', textTransform: 'uppercase' }}
+                  style={{ width: '100%', padding: '12px', fontSize: '1.2rem', textAlign: 'center', borderRadius: '8px', border: '2px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.5)', color: 'white', textTransform: 'uppercase' }}
                 />
                 <button 
-                  className="wizard-btn secondary huge" 
+                  className="wizard-btn huge" 
                   onClick={() => onPlayMulti('join', roomCode)}
                   disabled={roomCode.length !== 4}
-                  style={{ boxShadow: 'none', padding: '0 20px' }}
+                  style={{ boxShadow: 'none', width: '100%', background: '#64748b', color: 'white', border: 'none' }}
                 >
                   JOIN
                 </button>

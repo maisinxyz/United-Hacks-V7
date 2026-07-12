@@ -12,6 +12,7 @@ import StadiumBadge from './StadiumBadge'
 import SnowOverlay from './SnowOverlay'
 import FlyoverScreen from './FlyoverScreen'
 import PitchScene, { type CameraConfig } from './PitchScene'
+import GoalKeeperScreen from './GoalKeeperScreen'
 import axios from 'axios'
 import { runSimulation, type SimulateResult, type StadiumConditions, type TrajectoryPoint } from '../api'
 
@@ -38,7 +39,10 @@ const INITIAL_CONFIG: KickConfig = {
 const MAX_ATTEMPTS = 5
 const STEP_COUNT = 7
 
-function getCameraConfig(step: number, bp: [number, number]): CameraConfig {
+function getCameraConfig(step: number, bp: [number, number], role?: string | null): CameraConfig {
+  if (role === 'goalkeeper' && step >= 0 && step <= 5) {
+    return { position: [0, 2, 18], target: [0, 1, 0] }
+  }
   const [bx, bz] = bp
   const configs: Record<number, CameraConfig> = {
     [-2]: { position: [0, 30, -50], target: [0, 5, 0] },
@@ -73,6 +77,8 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
   // Multiplayer State
   const [ws, setWs] = useState<WebSocket | null>(null)
   const [myId, setMyId] = useState('')
+  const [myRole, setMyRole] = useState<string | null>(null)
+  const [roles, setRoles] = useState<Record<string, string>>({})
   const [activeRoomCode, setActiveRoomCode] = useState('')
   const [players, setPlayers] = useState<Record<string, {name: string, score: number, connected: boolean}>>({})
   const [currentTurn, setCurrentTurn] = useState('')
@@ -104,14 +110,17 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
       setActiveRoomCode(code || '')
 
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-      // Vite proxy is usually configured for WS too, but we can hit API directly if needed
-      // Here we assume Vite proxy handles wss://.../api
       const wsUrl = `${proto}://${window.location.host}/api/multiplayer/ws/${code}/${clientId}`
       
       const socket = new WebSocket(wsUrl)
       
       socket.onopen = () => {
         console.log("Connected to room", code)
+      }
+
+      socket.onerror = (e) => {
+        console.error("WebSocket Error: ", e)
+        setErrorMsg("Connection to server failed.")
       }
       
       socket.onmessage = (event) => {
@@ -125,6 +134,16 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
             
           case 'room_state':
             setPlayers(data.players)
+            if (data.roles) setRoles(data.roles)
+            break
+            
+          case 'role_selection':
+            if (data.roles) setRoles(data.roles)
+            setStep(-2.5) // Role Selection UI
+            break
+            
+          case 'role_update':
+            if (data.roles) setRoles(data.roles)
             break
             
           case 'game_start':
@@ -133,6 +152,12 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
             setBallPositions(data.ball_positions)
             setCurrentTurn(data.turn)
             setPlayers(data.players)
+            if (data.roles) {
+              setRoles(data.roles)
+              for (const [r, cid] of Object.entries(data.roles)) {
+                if (cid === myId) setMyRole(r as string)
+              }
+            }
             setStep(-1) // Start flyover
             break
             
@@ -271,7 +296,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
     setStep(0)
   }
 
-  const cameraConfig = useMemo(() => getCameraConfig(step, currentBallPos), [step, currentBallPos])
+  const cameraConfig = useMemo(() => getCameraConfig(step, currentBallPos, myRole), [step, currentBallPos, myRole])
 
   if (errorMsg) {
     return (
@@ -294,6 +319,41 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
           <p>Waiting for opponent...</p>
           <div className="loading-spinner" style={{marginTop: '2rem'}} />
           <button className="wizard-btn outline small" onClick={onExit} style={{marginTop: '2rem'}}>Cancel</button>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === -2.5) {
+    const selectRole = (role: string) => {
+      if (ws) ws.send(JSON.stringify({ type: 'select_role', role }))
+    }
+    const isKickerTaken = roles['kicker'] && roles['kicker'] !== myId
+    const isKeeperTaken = roles['goalkeeper'] && roles['goalkeeper'] !== myId
+    
+    return (
+      <div className="entrance-screen">
+        <div className="entrance-content">
+          <h2 className="game-title" style={{ fontSize: '3rem' }}>Select Role</h2>
+          <div style={{ display: 'flex', gap: '2rem', marginTop: '3rem' }}>
+            <button 
+              className="wizard-btn primary huge" 
+              disabled={isKickerTaken}
+              onClick={() => selectRole('kicker')}
+              style={{ opacity: isKickerTaken ? 0.5 : 1 }}
+            >
+              Penalty Taker
+            </button>
+            <button 
+              className="wizard-btn secondary huge" 
+              disabled={isKeeperTaken}
+              onClick={() => selectRole('goalkeeper')}
+              style={{ opacity: isKeeperTaken ? 0.5 : 1 }}
+            >
+              Goalkeeper
+            </button>
+          </div>
+          <p style={{ marginTop: '2rem', opacity: 0.8 }}>Waiting for both players to choose...</p>
         </div>
       </div>
     )
@@ -347,23 +407,27 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
       {(step >= 0 && step <= 3) && conditions && <StadiumBadge conditions={conditions} />}
 
       <div className="overlay-container">
-        {!isMyTurn && step >= 0 && step <= 4 && (
+        {myRole === 'goalkeeper' && step >= 0 && step <= 4 && (
+          <GoalKeeperScreen stadiumName={conditions?.stadium.name} />
+        )}
+
+        {myRole === 'kicker' && !isMyTurn && step >= 0 && step <= 4 && (
            <div className="overlay-card frosted bottom-center-panel" style={{ padding: '2rem', textAlign: 'center' }}>
              <h2>Opponent's Turn</h2>
              <p>Waiting for them to take their shot...</p>
            </div>
         )}
 
-        {isMyTurn && step === 0 && <PowerOverlay power={config.power} onUpdate={(p) => updateConfig({ power: p })} onNext={next} onBack={() => {}} />}
-        {isMyTurn && step === 1 && <HorizontalAngleOverlay angle={config.horizontalAngle} onUpdate={(a) => updateConfig({ horizontalAngle: a })} onNext={next} onBack={back} ballPosition={currentBallPos} />}
-        {isMyTurn && step === 2 && <VerticalAngleOverlay angle={config.verticalAngle} onUpdate={(a) => updateConfig({ verticalAngle: a })} onNext={next} onBack={back} />}
-        {isMyTurn && step === 3 && <CurveOverlay config={{...config, stadiumId: stadium?.id, conditions}} onUpdate={updateConfig} onKick={handleReadyToKick} onBack={back} loading={loading} ballPosition={currentBallPos} />}
-        {isMyTurn && step === 4 && <ShotTimingOverlay stamina={stamina} onResult={handleTimingResult} />}
+        {myRole === 'kicker' && isMyTurn && step === 0 && <PowerOverlay power={config.power} onUpdate={(p) => updateConfig({ power: p })} onNext={next} onBack={() => {}} />}
+        {myRole === 'kicker' && isMyTurn && step === 1 && <HorizontalAngleOverlay angle={config.horizontalAngle} onUpdate={(a) => updateConfig({ horizontalAngle: a })} onNext={next} onBack={back} ballPosition={currentBallPos} />}
+        {myRole === 'kicker' && isMyTurn && step === 2 && <VerticalAngleOverlay angle={config.verticalAngle} onUpdate={(a) => updateConfig({ verticalAngle: a })} onNext={next} onBack={back} />}
+        {myRole === 'kicker' && isMyTurn && step === 3 && <CurveOverlay config={{...config, stadiumId: stadium?.id, conditions}} onUpdate={updateConfig} onKick={handleReadyToKick} onBack={back} loading={loading} ballPosition={currentBallPos} />}
+        {myRole === 'kicker' && isMyTurn && step === 4 && <ShotTimingOverlay stamina={stamina} onResult={handleTimingResult} />}
         
         {step === 5 && simResult && resultRevealed && (
           <div className="result-actions">
             <div className="result-banner">
-              {simResult.result === 'goal' ? <h2 className="result-goal">⚽ GOAL!</h2> : <h2 className="result-miss">❌ MISSED</h2>}
+              {simResult.result === 'goal' ? <h2 className="result-goal" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(74, 222, 128, 0.5)' }}>⚽ GOAL!</h2> : <h2 className="result-miss" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(248, 113, 113, 0.5)' }}>❌ MISSED</h2>}
             </div>
             <button className="wizard-btn try-again-btn" onClick={handleNextKick}>
               {round < MAX_ATTEMPTS - 1 ? 'Continue →' : 'See Final Score'}
