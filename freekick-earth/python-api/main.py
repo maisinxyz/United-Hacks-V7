@@ -194,15 +194,73 @@ def _run_simulation(
 
     raw = pe.simulate_trajectory(kick, env, ball_start_x=ball_start_x, ball_start_z=ball_start_z)
 
-    return [
-        TrajectoryPoint(
+    # Calculate wall parameters
+    wall_dist = 9.144
+    dist_to_goal = math.hypot(0 - ball_start_x, 27 - ball_start_z)
+    has_wall = dist_to_goal >= 10.0
+    
+    wall_center_x = 0
+    wall_center_z = 0
+    if has_wall:
+        dir_x = (0 - ball_start_x) / dist_to_goal
+        dir_z = (27 - ball_start_z) / dist_to_goal
+        wall_center_x = ball_start_x + dir_x * wall_dist
+        wall_center_z = ball_start_z + dir_z * wall_dist
+
+    processed_traj = []
+    wall_hit = False
+
+    for i, s in enumerate(raw):
+        pt = TrajectoryPoint(
             x=round(s.position.x, 4),
             y=round(s.position.y, 4),
             z=round(s.position.z, 4),
             t=round(s.time, 4),
         )
-        for s in raw
-    ]
+
+        if has_wall and not wall_hit:
+            dist_from_start = math.hypot(pt.x - ball_start_x, pt.z - ball_start_z)
+            if dist_from_start >= wall_dist:
+                # Crossed the wall plane
+                lateral_dist = math.hypot(pt.x - wall_center_x, pt.z - wall_center_z)
+                # Wall is approx 3m wide (1.5m half-width) and max 2.15m high (with jump)
+                if lateral_dist <= 1.5 and pt.y <= 2.15:
+                    wall_hit = True
+                    processed_traj.append(pt)
+                    
+                    # Generate a simple bounce off the wall
+                    bounce_t = pt.t
+                    bx = pt.x
+                    by = pt.y
+                    bz = pt.z
+                    
+                    # Approximate velocity at impact
+                    vx = (pt.x - raw[i-1].position.x) / (pt.t - raw[i-1].time) if i > 0 else 0
+                    vy = (pt.y - raw[i-1].position.y) / (pt.t - raw[i-1].time) if i > 0 else 0
+                    vz = (pt.z - raw[i-1].position.z) / (pt.t - raw[i-1].time) if i > 0 else 0
+                    
+                    # Reverse and dampen velocity for the bounce
+                    vx = -vx * 0.4
+                    vy = abs(vy) * 0.3 if vy < 0 else vy * 0.3
+                    vz = -vz * 0.4
+                    
+                    for _ in range(15):
+                        bounce_t += 0.05
+                        bx += vx * 0.05
+                        by += vy * 0.05
+                        bz += vz * 0.05
+                        vy -= gravity * 0.05
+                        if by < 0.11:  # hit the ground
+                            by = 0.11
+                            vy = -vy * 0.5
+                        processed_traj.append(TrajectoryPoint(
+                            x=round(bx, 4), y=round(by, 4), z=round(bz, 4), t=round(bounce_t, 4)
+                        ))
+                    break # Stop reading raw trajectory, we bounced!
+                    
+        processed_traj.append(pt)
+
+    return processed_traj
 
 def _classify_result(trajectory: list[TrajectoryPoint]) -> str:
     """Determine if the kick was a goal or a specific type of miss."""

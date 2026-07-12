@@ -854,15 +854,14 @@ function DefensiveWall({ ballPosition, isShooting }: { ballPosition: [number, nu
   // Only jump once per shot
   useEffect(() => {
     if (isShooting && !hasJumped.current) {
-      // Small random delay before jump for realism (e.g., reaction time)
+      // Players anticipate the kick and jump almost instantly
       const timer = setTimeout(() => {
         isJumping.current = true
         // Random peak height between 0.15m and 0.40m
-        // Using v = sqrt(2 * g * h) with g=6 for floaty hang time
         const targetHeight = 0.15 + Math.random() * 0.25
         jumpVelocity.current = Math.sqrt(2 * 6.0 * targetHeight)
         hasJumped.current = true
-      }, 200 + Math.random() * 150)
+      }, 10 + Math.random() * 40)
       return () => clearTimeout(timer)
     } else if (!isShooting) {
       // Reset when not shooting
