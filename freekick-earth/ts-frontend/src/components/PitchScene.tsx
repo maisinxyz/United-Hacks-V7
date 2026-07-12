@@ -117,7 +117,7 @@ export default function PitchScene({
           position={camera.position}
           instant={instantCamera}
           triggerRecenter={triggerRecenter}
-          trackBall={false}
+          trackBall={stepIndex === 5}
           ballRef={ballRef}
           isLocked={isLocked}
         />
