@@ -26,11 +26,11 @@ const vertexShader = `
       // Calculate world position to create a traveling wave
       vec4 worldPos = modelMatrix * instanceMat * vec4(0.0, 0.0, 0.0, 1.0);
       
-      // Sway wave
-      float wave = sin(worldPos.x * 0.5 + worldPos.z * 0.5 + time * 2.0);
+      // Sway wave (tighter, faster ripples for grass)
+      float wave = sin(worldPos.x * 2.0 + worldPos.z * 2.0 + time * 3.0);
       
       // Apply displacement
-      float swayMultiplier = position.y * 0.1; // Bend more at the top
+      float swayMultiplier = position.y * 0.04; // Bend more at the top, less exaggerated than seaweed
       localPosition.x += wave * windX * swayMultiplier;
       localPosition.z += wave * windZ * swayMultiplier;
       
@@ -59,7 +59,7 @@ const fragmentShader = `
 export default function Grass({
   windSpeed = 2,
   windDirection = 0,
-  count = 200000,
+  count = 500000,
   width = 80,
   depth = 120
 }: {
@@ -124,8 +124,8 @@ export default function Grass({
 
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, count]} castShadow receiveShadow position={[0, 0, 0]} frustumCulled={false}>
-      {/* Simple grass blade geometry (a narrow triangle/cone) */}
-      <coneGeometry args={[0.03, 0.4, 3]} />
+      {/* Simple grass blade geometry (thinner, more blade-like) */}
+      <coneGeometry args={[0.015, 0.35, 3]} />
       <shaderMaterial
         ref={materialRef}
         vertexShader={vertexShader}

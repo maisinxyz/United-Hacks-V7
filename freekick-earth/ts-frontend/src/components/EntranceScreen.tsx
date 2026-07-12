@@ -10,11 +10,10 @@ export default function EntranceScreen({ onPlay }: Props) {
   return (
     <div className="entrance-screen">
       <div className="entrance-content">
-        <h1 className="game-title">FreeKick Earth</h1>
-        <p className="game-subtitle">Dynamic Weather. Realistic Physics. Can you score?</p>
+        <h1 className="game-title">[TITLE]</h1>
         
-        <div className="entrance-actions">
-          <button className="wizard-btn primary huge" onClick={onPlay}>
+        <div className="entrance-actions" style={{ marginTop: '2rem' }}>
+          <button className="wizard-btn primary huge" onClick={onPlay} style={{ boxShadow: 'none' }}>
             ▶ PLAY NOW
           </button>
           
