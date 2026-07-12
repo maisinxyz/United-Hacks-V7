@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { KickConfig } from './StepWizard'
 
 interface Props {

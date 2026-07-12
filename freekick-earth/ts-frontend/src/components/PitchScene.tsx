@@ -561,8 +561,7 @@ function ArenaEnvironment({ stadiumId, hideRoof = false }: { stadiumId: string; 
   const primitives = getStadiumPrimitives(stadiumId, hideRoof)
 
   return (
-    <group scale={[1, 1, 1.6]}>
-      <group position={[0, 0, -13]}>
+    <group>
       {primitives.map((p: any, i: number) => {
         if (p.type === 'cylinder') {
           return (
@@ -579,7 +578,6 @@ function ArenaEnvironment({ stadiumId, hideRoof = false }: { stadiumId: string; 
           </mesh>
         )
       })}
-      </group>
     </group>
   )
 }
