@@ -1,7 +1,7 @@
 /**
  * StepWizard — Orchestrates the immersive UI flow.
  * 5-attempt free kick mode with random ball positions and scoreboard.
- * Flow: Entrance → [Power → H-Aim → V-Aim → Curve → Result] × 5 → Game Over
+ * Flow: Entrance → [Power → H-Aim → V-Aim → Curve → Timing → Result] × 5 → Game Over
  */
 
 import { useState, useCallback, useEffect, useMemo } from 'react'
@@ -10,9 +10,8 @@ import PowerOverlay from './PowerOverlay'
 import HorizontalAngleOverlay from './HorizontalAngleOverlay'
 import VerticalAngleOverlay from './VerticalAngleOverlay'
 import CurveOverlay from './CurveOverlay'
+import ShotTimingOverlay, { type TimingResult } from './ShotTimingOverlay'
 import StadiumBadge from './StadiumBadge'
-import Scoreboard from './Scoreboard'
-import GameOverScreen from './GameOverScreen'
 import SnowOverlay from './SnowOverlay'
 import PitchScene, { type CameraConfig } from './PitchScene'
 import axios from 'axios'
@@ -44,8 +43,8 @@ const INITIAL_CONFIG: KickConfig = {
 
 const MAX_ATTEMPTS = 5
 
-// Steps: -2 = Entrance, 0 = Power, 1 = H-Aim, 2 = V-Aim, 3 = Curve, 4 = Kick Result, 5 = Game Over
-const STEP_COUNT = 6
+// Steps: -2 = Entrance, 0 = Power, 1 = H-Aim, 2 = V-Aim, 3 = Curve, 4 = Timing, 5 = Kick Result, 6 = Game Over
+const STEP_COUNT = 7
 
 /** Generate a random ball position outside the penalty box but inside the attacking half.
  *  Penalty box: x ∈ [-9, 9], z ∈ [10, 27]. We pick outside that region.
@@ -69,8 +68,9 @@ function getCameraConfig(step: number, bp: [number, number]): CameraConfig {
     1: { position: [bx, 12, bz - 8], target: [bx, 0, (bz + 27) / 2] },
     2: { position: [bx - 15, 3, (bz + 27) / 2], target: [bx, 1, (bz + 27) / 2] },
     3: { position: [bx, 1.0, bz - 2.5], target: [bx, 0.11, (bz + 27) / 2] },
-    4: { position: [bx, 8, bz - 12], target: [0, 2, 15] },
-    5: { position: [0, 30, -20], target: [0, 0, 15] },
+    4: { position: [bx, 1.0, bz - 2.5], target: [bx, 0.11, (bz + 27) / 2] }, // Timing: same as curve
+    5: { position: [bx, 8, bz - 12], target: [0, 2, 15] }, // Result
+    6: { position: [0, 30, -20], target: [0, 0, 15] }, // Game Over
   }
   return configs[step] || configs[0]
 }
@@ -89,6 +89,7 @@ export default function StepWizard() {
   const [score, setScore] = useState(0)
   const [ballPositions, setBallPositions] = useState<[number, number][]>(() => generateRandomPositions(MAX_ATTEMPTS))
   const [gameOver, setGameOver] = useState(false)
+  const [stamina, setStamina] = useState(100)
 
   const currentBallPos = ballPositions[attemptIndex] || [0, 0]
 
@@ -99,6 +100,7 @@ export default function StepWizard() {
     setAttemptResults([])
     setScore(0)
     setGameOver(false)
+    setStamina(100)
     const newPositions = generateRandomPositions(MAX_ATTEMPTS)
     setBallPositions(newPositions)
     try {
@@ -162,17 +164,33 @@ export default function StepWizard() {
   const next = () => setStep((s) => Math.min(s + 1, STEP_COUNT - 1))
   const back = () => setStep((s) => Math.max(s - 1, 0))
 
-  const handleKick = async () => {
+  // CurveOverlay's "KICK!" now advances to the timing step
+  const handleReadyToKick = () => {
+    setStep(4) // Go to timing overlay
+  }
+
+  // Called after the timing overlay fires its result
+  const handleTimingResult = async (timing: TimingResult) => {
     if (!config.conditions) return
+
+    // Apply stamina cost
+    setStamina((prev) => Math.max(0, prev - timing.staminaCost))
+
     setLoading(true)
     setResultRevealed(false)
+
+    // Apply deviation based on timing zone
+    const devScale = timing.deviation
+    const hDeviation = (Math.random() - 0.5) * 2 * devScale * 8 // up to ±8 degrees in red
+    const vDeviation = (Math.random() - 0.5) * 2 * devScale * 4 // up to ±4 degrees in red
+
     try {
       const result = await runSimulation({
         stadium_id: config.stadiumId,
         power: config.power,
-        horizontal_angle: config.horizontalAngle,
-        vertical_angle: config.verticalAngle,
-        spin_rate: config.spinRate,
+        horizontal_angle: config.horizontalAngle + hDeviation,
+        vertical_angle: config.verticalAngle + vDeviation,
+        spin_rate: config.spinRate * (1 - devScale * 0.3), // up to 30% spin loss
         spin_axis_x: config.spinAxisX,
         spin_axis_y: config.spinAxisY,
         spin_axis_z: config.spinAxisZ,
@@ -181,7 +199,7 @@ export default function StepWizard() {
         ball_start_z: currentBallPos[1],
       })
       setSimResult(result)
-      setStep(4)
+      setStep(5) // Go to result
     } catch (err) {
       console.error('Simulation failed:', err)
     } finally {
@@ -191,7 +209,7 @@ export default function StepWizard() {
 
   // Record result when revealed
   useEffect(() => {
-    if (step === 4 && resultRevealed && simResult && attemptResults.length === attemptIndex) {
+    if (step === 5 && resultRevealed && simResult && attemptResults.length === attemptIndex) {
       const isGoal = simResult.result === 'goal'
       setAttemptResults((prev) => [...prev, isGoal ? 'goal' : 'miss'])
       if (isGoal) setScore((s) => s + 1)
@@ -202,7 +220,7 @@ export default function StepWizard() {
     const nextAttempt = attemptIndex + 1
     if (nextAttempt >= MAX_ATTEMPTS) {
       setGameOver(true)
-      setStep(5)
+      setStep(6)
       return
     }
     setAttemptIndex(nextAttempt)
@@ -245,8 +263,8 @@ export default function StepWizard() {
           trajectory={simResult?.trajectory}
           previewTrajectory={previewTrajectory}
           ghostTrajectory={previewTrajectory || undefined}
-          result={step === 4 && resultRevealed ? simResult?.result : undefined}
-          resultVisible={step === 4 && resultRevealed}
+          result={step === 5 && resultRevealed ? simResult?.result : undefined}
+          resultVisible={step === 5 && resultRevealed}
           dimmed={false}
           stepIndex={step}
           config={config}
@@ -289,9 +307,12 @@ export default function StepWizard() {
           <VerticalAngleOverlay angle={config.verticalAngle} onUpdate={(a) => updateConfig({ verticalAngle: a })} onNext={next} onBack={back} />
         )}
         {step === 3 && (
-          <CurveOverlay config={config} onUpdate={updateConfig} onKick={handleKick} onBack={back} loading={loading} ballPosition={currentBallPos} />
+          <CurveOverlay config={config} onUpdate={updateConfig} onKick={handleReadyToKick} onBack={back} loading={loading} ballPosition={currentBallPos} />
         )}
-        {step === 4 && simResult && resultRevealed && (
+        {step === 4 && (
+          <ShotTimingOverlay stamina={stamina} onResult={handleTimingResult} />
+        )}
+        {step === 5 && simResult && resultRevealed && (
           <div className="result-actions">
             <div className="result-banner">
               {simResult.result === 'goal' ? (
@@ -311,7 +332,7 @@ export default function StepWizard() {
             )}
           </div>
         )}
-        {step === 5 && gameOver && (
+        {step === 6 && gameOver && (
           <div className="game-over-screen">
             <h1 className="game-over-title">Final Score</h1>
             <div className="game-over-score">{score} / {MAX_ATTEMPTS}</div>
