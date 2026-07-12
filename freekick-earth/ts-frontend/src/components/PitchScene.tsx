@@ -10,6 +10,7 @@ import { Line, Text, CameraControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { TrajectoryPoint } from '../api'
 import type { KickConfig } from './StepWizard'
+import { getStadiumPrimitives } from './stadiums3d'
 import BCPlace from './BCPlace'
 
 export interface CameraConfig {
@@ -529,16 +530,8 @@ function GoalPosts({ ballRef, isNorth = false }: { ballRef: React.MutableRefObje
 }
 
 // ---------------------------------------------------------------
-// Procedural Arena
+// Procedural Arena — per-stadium 3D models
 // ---------------------------------------------------------------
-
-const STADIUM_THEMES: Record<string, { seats: string; archType: 'bowl' | 'canopy' | 'rectangular' }> = {
-  azteca: { seats: '#166534', archType: 'rectangular' }, // Mexico (Steep tiers)
-  metlife: { seats: '#1e3a8a', archType: 'rectangular' }, // US (Classic blocky)
-  rosebowl: { seats: '#b91c1c', archType: 'bowl' },       // US (Open oval)
-  sofi: { seats: '#1e3a8a', archType: 'canopy' },         // US (Massive roof)
-  default: { seats: '#475569', archType: 'canopy' },
-}
 
 function ArenaEnvironment({ stadiumId, hideRoof = false }: { stadiumId: string; hideRoof?: boolean }) {
   const theme = STADIUM_THEMES[stadiumId] || STADIUM_THEMES.default
@@ -585,12 +578,22 @@ function ArenaEnvironment({ stadiumId, hideRoof = false }: { stadiumId: string; 
 
   return (
     <group>
-      {blocks.map((b, i) => (
-        <mesh key={i} position={new THREE.Vector3(...b.pos)} rotation={new THREE.Euler(...b.rot)} receiveShadow castShadow>
-          <boxGeometry args={b.size as [number, number, number]} />
-          <meshStandardMaterial color={b.color} roughness={0.9} />
-        </mesh>
-      ))}
+      {primitives.map((p, i) => {
+        if (p.type === 'cylinder') {
+          return (
+            <mesh key={i} position={new THREE.Vector3(...p.pos)} rotation={new THREE.Euler(...p.rot)} receiveShadow castShadow>
+              <cylinderGeometry args={p.args} />
+              <meshStandardMaterial color={p.color} roughness={0.9} transparent={p.opacity != null} opacity={p.opacity ?? 1} />
+            </mesh>
+          )
+        }
+        return (
+          <mesh key={i} position={new THREE.Vector3(...p.pos)} rotation={new THREE.Euler(...p.rot)} receiveShadow castShadow>
+            <boxGeometry args={p.size as [number, number, number]} />
+            <meshStandardMaterial color={p.color} roughness={0.9} transparent={p.opacity != null} opacity={p.opacity ?? 1} />
+          </mesh>
+        )
+      })}
     </group>
   )
 }
