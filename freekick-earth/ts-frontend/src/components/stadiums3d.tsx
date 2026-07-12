@@ -66,22 +66,52 @@ function bleacherRows(
   rowHeight: number = 1.2, rowDepth: number = 1.5,
 ): StadiumPrimitive[] {
   const out: StadiumPrimitive[] = []
+  
+  // Create sections with stairways in between
+  const sectionCount = Math.max(1, Math.floor(length / 15))
+  const stairWidth = 2.0
+  const totalStairWidth = (sectionCount - 1) * stairWidth
+  const sectionLength = (length - totalStairWidth) / sectionCount
+  
   for (let r = 0; r < rows; r++) {
     const y = baseY + r * rowHeight
     const offset = r * rowDepth
-    if (side === 'left') {
-      out.push(box([baseX - offset, y, baseZ], [rowDepth, rowHeight * 0.7, length], color))
-      // seat-back strip (darker)
-      out.push(box([baseX - offset + rowDepth * 0.4, y + rowHeight * 0.35, baseZ], [0.15, rowHeight * 0.3, length], darken(color)))
-    } else if (side === 'right') {
-      out.push(box([baseX + offset, y, baseZ], [rowDepth, rowHeight * 0.7, length], color))
-      out.push(box([baseX + offset - rowDepth * 0.4, y + rowHeight * 0.35, baseZ], [0.15, rowHeight * 0.3, length], darken(color)))
-    } else if (side === 'back') {
-      out.push(box([baseX, y, baseZ + offset], [length, rowHeight * 0.7, rowDepth], color))
-      out.push(box([baseX, y + rowHeight * 0.35, baseZ + offset - rowDepth * 0.4], [length, rowHeight * 0.3, 0.15], darken(color)))
-    } else {
-      out.push(box([baseX, y, baseZ - offset], [length, rowHeight * 0.7, rowDepth], color))
-      out.push(box([baseX, y + rowHeight * 0.35, baseZ - offset + rowDepth * 0.4], [length, rowHeight * 0.3, 0.15], darken(color)))
+    
+    // For each section along the length
+    for (let s = 0; s < sectionCount; s++) {
+      // Calculate local offset along the length
+      const posOffset = -length / 2 + (sectionLength / 2) + s * (sectionLength + stairWidth)
+      
+      if (side === 'left') {
+        const pz = baseZ + posOffset
+        out.push(box([baseX - offset, y, pz], [rowDepth, rowHeight * 0.7, sectionLength], color))
+        out.push(box([baseX - offset + rowDepth * 0.4, y + rowHeight * 0.35, pz], [0.15, rowHeight * 0.3, sectionLength], darken(color)))
+        // Add stairs if not last section
+        if (s < sectionCount - 1) {
+          out.push(box([baseX - offset, y, pz + sectionLength/2 + stairWidth/2], [rowDepth, rowHeight * 0.5, stairWidth], '#6b7280')) // Concrete stairs
+        }
+      } else if (side === 'right') {
+        const pz = baseZ + posOffset
+        out.push(box([baseX + offset, y, pz], [rowDepth, rowHeight * 0.7, sectionLength], color))
+        out.push(box([baseX + offset - rowDepth * 0.4, y + rowHeight * 0.35, pz], [0.15, rowHeight * 0.3, sectionLength], darken(color)))
+        if (s < sectionCount - 1) {
+          out.push(box([baseX + offset, y, pz + sectionLength/2 + stairWidth/2], [rowDepth, rowHeight * 0.5, stairWidth], '#6b7280'))
+        }
+      } else if (side === 'back') {
+        const px = baseX + posOffset
+        out.push(box([px, y, baseZ + offset], [sectionLength, rowHeight * 0.7, rowDepth], color))
+        out.push(box([px, y + rowHeight * 0.35, baseZ + offset - rowDepth * 0.4], [sectionLength, rowHeight * 0.3, 0.15], darken(color)))
+        if (s < sectionCount - 1) {
+          out.push(box([px + sectionLength/2 + stairWidth/2, y, baseZ + offset], [stairWidth, rowHeight * 0.5, rowDepth], '#6b7280'))
+        }
+      } else {
+        const px = baseX + posOffset
+        out.push(box([px, y, baseZ - offset], [sectionLength, rowHeight * 0.7, rowDepth], color))
+        out.push(box([px, y + rowHeight * 0.35, baseZ - offset + rowDepth * 0.4], [sectionLength, rowHeight * 0.3, 0.15], darken(color)))
+        if (s < sectionCount - 1) {
+          out.push(box([px + sectionLength/2 + stairWidth/2, y, baseZ - offset], [stairWidth, rowHeight * 0.5, rowDepth], '#6b7280'))
+        }
+      }
     }
   }
   return out
@@ -98,91 +128,98 @@ function darken(hex: string): string {
 // Common pitch-side details (shared by all stadiums)
 // ---------------------------------------------------------------
 function commonDetails(): StadiumPrimitive[] {
-  const adBoard = '#1a1a2e'
+  const adBoard = '#111827'
+  const adScreen = '#f8fafc' // Bright screen
   const adAccent = '#e11d48' // sponsor red
   const adAccent2 = '#2563eb' // sponsor blue
-  const bench = '#374151'
-  const benchSeat = '#60a5fa'
-  const tunnel = '#1f2937'
-  const concrete = '#9ca3af'
+  const bench = '#1f2937'
+  const benchSeat = '#3b82f6'
+  const tunnel = '#111827'
+  const concrete = '#6b7280'
   const white = '#ffffff'
+  const glass = '#bae6fd'
 
   return [
-    // === LED AD BOARDS around pitch perimeter ===
+    // === LED AD BOARDS (Thicker, layered) ===
     // Left sideline
-    box([-29, 0.55, 13], [0.3, 1.0, 80], adBoard),
-    // Ad strips on the board (colored sponsor panels)
-    box([-29.1, 0.7, 0], [0.1, 0.5, 12], adAccent),
-    box([-29.1, 0.7, 13], [0.1, 0.5, 14], adAccent2),
-    box([-29.1, 0.7, 26], [0.1, 0.5, 10], '#f59e0b'),
+    box([-29, 0.6, 13], [0.4, 1.2, 80], adBoard),
+    box([-28.9, 0.6, 13], [0.1, 1.0, 79], adScreen), // Screen face
+    box([-28.8, 0.6, 0], [0.1, 1.0, 12], adAccent),
+    box([-28.8, 0.6, 13], [0.1, 1.0, 14], adAccent2),
+    box([-28.8, 0.6, 26], [0.1, 1.0, 10], '#f59e0b'),
+    
     // Right sideline
-    box([29, 0.55, 13], [0.3, 1.0, 80], adBoard),
-    box([29.1, 0.7, 5], [0.1, 0.5, 12], adAccent2),
-    box([29.1, 0.7, 18], [0.1, 0.5, 14], adAccent),
-    box([29.1, 0.7, 32], [0.1, 0.5, 8], '#10b981'),
+    box([29, 0.6, 13], [0.4, 1.2, 80], adBoard),
+    box([28.9, 0.6, 13], [0.1, 1.0, 79], adScreen),
+    box([28.8, 0.6, 5], [0.1, 1.0, 12], adAccent2),
+    box([28.8, 0.6, 18], [0.1, 1.0, 14], adAccent),
+    box([28.8, 0.6, 32], [0.1, 1.0, 8], '#10b981'),
+    
     // Behind goal (north)
-    box([0, 0.55, -4], [60, 1.0, 0.3], adBoard),
-    box([0, 0.7, -4.1], [15, 0.5, 0.1], '#f59e0b'),
-    box([12, 0.7, -4.1], [10, 0.5, 0.1], adAccent),
-    // Behind goal (south — where you shoot toward)
-    box([0, 0.55, 30], [60, 1.0, 0.3], adBoard),
-    box([-8, 0.7, 30.1], [12, 0.5, 0.1], adAccent2),
-    box([10, 0.7, 30.1], [8, 0.5, 0.1], '#10b981'),
+    box([0, 0.6, -4], [60, 1.2, 0.4], adBoard),
+    box([0, 0.6, -3.9], [59, 1.0, 0.1], adScreen),
+    box([0, 0.6, -3.8], [15, 1.0, 0.1], '#f59e0b'),
+    box([12, 0.6, -3.8], [10, 1.0, 0.1], adAccent),
+    
+    // Behind goal (south)
+    box([0, 0.6, 31], [60, 1.2, 0.4], adBoard), // Moved slightly further back
+    box([0, 0.6, 30.9], [59, 1.0, 0.1], adScreen),
+    box([-8, 0.6, 30.8], [12, 1.0, 0.1], adAccent2),
+    box([10, 0.6, 30.8], [8, 1.0, 0.1], '#10b981'),
 
-    // === TEAM BENCHES (dugouts) ===
-    // Home bench (left sideline, between halfway and penalty area)
-    // Bench shelter roof
-    box([-31.5, 2.0, 6], [2.5, 0.15, 10], concrete),
-    // Bench shelter back wall
-    box([-32.5, 1.2, 6], [0.3, 2.0, 10], bench),
-    // Bench shelter side walls
-    box([-31.5, 1.2, 1], [2.5, 2.0, 0.2], bench),
-    box([-31.5, 1.2, 11], [2.5, 2.0, 0.2], bench),
-    // Bench seats (row of small boxes)
-    ...Array.from({ length: 8 }, (_, i) => 
-      box([-31, 0.45, 2 + i * 1.1], [1.2, 0.5, 0.8], benchSeat)
-    ),
+    // === TEAM BENCHES (HYPER Detailed Dugouts) ===
+    // Home bench
+    box([-31.5, 2.5, 6], [3.0, 0.2, 12], concrete), // Thicker Roof
+    box([-31.0, 1.5, 6], [2.0, 2.5, 11], glass, [0,0,0], { opacity: 0.3 }), // Glass enclosure
+    box([-32.8, 1.2, 6], [0.4, 2.5, 12], bench), // Back wall
+    box([-31.5, 1.2, 0], [3.0, 2.5, 0.4], bench), // Left wall
+    box([-31.5, 1.2, 12], [3.0, 2.5, 0.4], bench), // Right wall
+    // Seats in two rows
+    ...Array.from({ length: 9 }, (_, i) => box([-32, 0.6, 1.5 + i * 1.1], [0.8, 0.8, 0.8], benchSeat)),
+    ...Array.from({ length: 9 }, (_, i) => box([-31, 0.4, 1.5 + i * 1.1], [0.8, 0.6, 0.8], benchSeat)),
+    // Water cooler
+    cyl([-31.5, 0.6, 11], [0.3, 0.3, 0.8, 16], '#ef4444'),
 
-    // Away bench (left sideline, other side of halfway)
-    box([-31.5, 2.0, 20], [2.5, 0.15, 10], concrete),
-    box([-32.5, 1.2, 20], [0.3, 2.0, 10], bench),
-    box([-31.5, 1.2, 15], [2.5, 2.0, 0.2], bench),
-    box([-31.5, 1.2, 25], [2.5, 2.0, 0.2], bench),
-    ...Array.from({ length: 8 }, (_, i) =>
-      box([-31, 0.45, 16 + i * 1.1], [1.2, 0.5, 0.8], benchSeat)
-    ),
+    // Away bench
+    box([-31.5, 2.5, 20], [3.0, 0.2, 12], concrete),
+    box([-31.0, 1.5, 20], [2.0, 2.5, 11], glass, [0,0,0], { opacity: 0.3 }),
+    box([-32.8, 1.2, 20], [0.4, 2.5, 12], bench),
+    box([-31.5, 1.2, 14], [3.0, 2.5, 0.4], bench),
+    box([-31.5, 1.2, 26], [3.0, 2.5, 0.4], bench),
+    ...Array.from({ length: 9 }, (_, i) => box([-32, 0.6, 15.5 + i * 1.1], [0.8, 0.8, 0.8], '#ef4444')),
+    ...Array.from({ length: 9 }, (_, i) => box([-31, 0.4, 15.5 + i * 1.1], [0.8, 0.6, 0.8], '#ef4444')),
+    cyl([-31.5, 0.6, 25], [0.3, 0.3, 0.8, 16], '#3b82f6'),
 
     // === PLAYER TUNNEL (right sideline, at halfway) ===
-    box([30, 1.2, 13], [2, 2.4, 4], tunnel),
-    box([30, 2.5, 13], [2.5, 0.15, 4.5], concrete), // tunnel roof
-    // Tunnel entrance arch
-    box([29, 1.2, 11.2], [0.3, 2.4, 0.3], white),
-    box([29, 1.2, 14.8], [0.3, 2.4, 0.3], white),
-    box([29, 2.5, 13], [0.3, 0.2, 3.8], white),
+    box([31, 1.5, 13], [4, 3.0, 5], tunnel),
+    box([31, 3.1, 13], [4.5, 0.3, 5.5], concrete),
+    box([29, 1.5, 10.5], [0.4, 3.0, 0.4], white),
+    box([29, 1.5, 15.5], [0.4, 3.0, 0.4], white),
+    box([29, 3.1, 13], [0.4, 0.4, 5.4], white),
+    // Tunnel interior shadow
+    box([31.5, 1.4, 13], [3.5, 2.8, 4.5], '#000000'),
 
     // === 4TH OFFICIAL BOARD (between benches) ===
-    box([-30.5, 1.5, 13], [0.1, 1.2, 0.8], '#111111'),
-    box([-30.5, 1.8, 13], [0.05, 0.6, 0.6], '#22c55e'), // green display
+    box([-30.5, 1.5, 13], [0.2, 1.4, 1.0], '#111111'),
+    box([-30.4, 1.9, 13], [0.1, 0.8, 0.8], '#22c55e'), // green display
 
     // === PERIMETER CONCRETE MOAT / TRACK ===
-    // Thin strip between pitch and stands
-    box([-31, 0.02, 13], [4, 0.04, 82], '#d1d5db'),
-    box([31, 0.02, 13], [4, 0.04, 82], '#d1d5db'),
-    box([0, 0.02, -5.5], [64, 0.04, 3], '#d1d5db'),
-    box([0, 0.02, 31.5], [64, 0.04, 3], '#d1d5db'),
+    box([-32, 0.02, 13], [6, 0.04, 86], '#d1d5db'),
+    box([32, 0.02, 13], [6, 0.04, 86], '#d1d5db'),
+    box([0, 0.02, -6.5], [70, 0.04, 5], '#d1d5db'),
+    box([0, 0.02, 33.5], [70, 0.04, 5], '#d1d5db'),
 
-    // === CAMERA POSITIONS (small boxes on tripods) ===
-    box([30, 0.7, -2], [0.5, 0.8, 0.5], '#111111'),
-    box([30, 1.2, -2], [0.3, 0.15, 0.3], '#374151'), // camera head
-    box([-30, 0.7, 28], [0.5, 0.8, 0.5], '#111111'),
-    box([-30, 1.2, 28], [0.3, 0.15, 0.3], '#374151'),
+    // === CAMERA POSITIONS & EQUIPMENT ===
+    box([30, 1.0, -2], [0.6, 1.2, 0.6], '#111111'),
+    box([30, 1.8, -2], [0.4, 0.3, 0.8], '#374151'), // camera head
+    box([-30, 1.0, 28], [0.6, 1.2, 0.6], '#111111'),
+    box([-30, 1.8, 28], [0.4, 0.3, 0.8], '#374151'),
 
     // === CORNER FLAG BASES ===
-    // (the actual flag pole is in PitchScene's CornerFlag component)
-    cyl([-28.5, 0.03, -3.5], [0.15, 0.15, 0.06, 8], '#fef3c7'),
-    cyl([28.5, 0.03, -3.5], [0.15, 0.15, 0.06, 8], '#fef3c7'),
-    cyl([-28.5, 0.03, 29.5], [0.15, 0.15, 0.06, 8], '#fef3c7'),
-    cyl([28.5, 0.03, 29.5], [0.15, 0.15, 0.06, 8], '#fef3c7'),
+    cyl([-28.5, 0.05, -3.5], [0.2, 0.2, 0.1, 12], '#fef3c7'),
+    cyl([28.5, 0.05, -3.5], [0.2, 0.2, 0.1, 12], '#fef3c7'),
+    cyl([-28.5, 0.05, 30.5], [0.2, 0.2, 0.1, 12], '#fef3c7'),
+    cyl([28.5, 0.05, 30.5], [0.2, 0.2, 0.1, 12], '#fef3c7'),
   ]
 }
 

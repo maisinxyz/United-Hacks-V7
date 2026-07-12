@@ -96,7 +96,7 @@ export default function VerticalAngleOverlay({ angle, onUpdate, onNext, onBack }
           <circle cx={CENTER_X} cy={CENTER_Y} r="5" fill="white" stroke="#1e6b38" strokeWidth="2" />
         </svg>
         <div className="angle-readout">
-          <div className="angle-value">{angle}°</div>
+          <div className="angle-value" style={{ minWidth: '4ch', display: 'inline-block', fontVariantNumeric: 'tabular-nums' }}>{angle}°</div>
         </div>
       </div>
 

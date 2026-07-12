@@ -12,6 +12,8 @@ import type { TrajectoryPoint } from '../api'
 import type { KickConfig } from './StepWizard'
 import { getStadiumPrimitives } from './stadiums3d'
 import BCPlace from './BCPlace'
+import Grass from './Grass'
+import { Coach, PlayerWarmup, CameraOperator, BallRack } from './NPCs'
 
 export interface CameraConfig {
   position: [number, number, number]
@@ -101,14 +103,19 @@ export default function PitchScene({
         <ambientLight intensity={0.6} />
         <directionalLight
           position={[50, 80, -30]}
-          intensity={1.2}
+          intensity={1.5}
           castShadow
-          shadow-mapSize-width={2048}
-          shadow-mapSize-height={2048}
+          shadow-mapSize-width={4096}
+          shadow-mapSize-height={4096}
           shadow-bias={-0.0005}
         >
           <orthographicCamera attach="shadow-camera" left={-120} right={120} top={120} bottom={-120} near={0.1} far={300} />
         </directionalLight>
+        {/* Volumetric sun ray proxy */}
+        <mesh position={[25, 40, -15]} rotation={[Math.PI / 4, 0, Math.PI / 6]}>
+          <cylinderGeometry args={[5, 20, 100, 32, 1, true]} />
+          <meshBasicMaterial color="#ffedd5" transparent opacity={0.03} side={THREE.DoubleSide} depthWrite={false} blending={THREE.AdditiveBlending} />
+        </mesh>
         <hemisphereLight color="#87ceeb" groundColor="#2d8a4e" intensity={0.4} />
 
         <Sky sunPosition={[100, 20, 100]} turbidity={8} rayleigh={0.5} />
@@ -126,6 +133,24 @@ export default function PitchScene({
         <DefensiveWall ballPosition={ballPosition} isShooting={(trajectory && trajectory.length > 0) || false} />
 
         <Pitch />
+        <Grass windSpeed={config.conditions?.wind_speed_m_s} windDirection={config.conditions?.wind_direction_deg} />
+        
+        {/* Sideline NPCs */}
+        {stepIndex >= 0 && (
+          <group>
+            <Coach position={[-29, 0, 6]} rotation={[0, Math.PI/2, 0]} />
+            <PlayerWarmup position={[-29, 0, 2]} rotation={[0, Math.PI/2, 0]} offset={0} />
+            <PlayerWarmup position={[-29, 0, 3.5]} rotation={[0, Math.PI/2, 0]} offset={Math.PI} />
+            <BallRack position={[-29, 0, 10]} rotation={[0, Math.PI/2, 0]} />
+            
+            <Coach position={[-29, 0, 20]} rotation={[0, Math.PI/2, 0]} />
+            <PlayerWarmup position={[-29, 0, 24]} rotation={[0, Math.PI/2, 0]} offset={2} />
+            
+            <CameraOperator position={[28, 0, -2]} rotation={[0, -Math.PI/4, 0]} />
+            <CameraOperator position={[-28, 0, 28]} rotation={[0, Math.PI/4, 0]} />
+          </group>
+        )}
+
         <ArenaEnvironment stadiumId={config.stadiumId} hideRoof={stepIndex < 0} />
         {stepIndex < 0 && <BCPlace />}
         {config.conditions && (
@@ -277,7 +302,7 @@ function CameraController({
       makeDefault
       maxPolarAngle={Math.PI / 2 - 0.05} // Don't let camera go below ground
       minDistance={2}
-      maxDistance={80}
+      maxDistance={40}
       dollySpeed={1.5}
       mouseButtons={{
         left: 1, // ROTATE
@@ -357,11 +382,11 @@ function Pitch() {
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
         <planeGeometry args={[40, 54]} />
-        <meshStandardMaterial color="#3ba55d" />
+        <meshStandardMaterial color="#388e3c" />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
         <planeGeometry args={[120, 120]} />
-        <meshStandardMaterial color="#4caf50" />
+        <meshStandardMaterial color="#2e7d32" />
       </mesh>
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, y, 0]}>
