@@ -846,46 +846,50 @@ function Birds() {
 // ---------------------------------------------------------------
 function DefensiveWall({ ballPosition, isShooting }: { ballPosition: [number, number]; isShooting: boolean }) {
   const groupRef = useRef<THREE.Group>(null!)
-  const jumpOffset = useRef(0)
-  const jumpVelocity = useRef(0)
+  const jumpStartTime = useRef(0)
+  const jumpHeightParams = useRef({ v: 0, g: 0 })
   const isJumping = useRef(false)
   const hasJumped = useRef(false)
 
   // Only jump once per shot
   useEffect(() => {
     if (isShooting && !hasJumped.current) {
-      // Players anticipate the kick and jump almost instantly
-      const timer = setTimeout(() => {
-        isJumping.current = true
-        // Random peak height between 0.15m and 0.40m
-        const targetHeight = 0.15 + Math.random() * 0.25
-        jumpVelocity.current = Math.sqrt(2 * 6.0 * targetHeight)
-        hasJumped.current = true
-      }, 10 + Math.random() * 40)
-      return () => clearTimeout(timer)
+      // Players jump immediately when the shot is fired
+      isJumping.current = true
+      hasJumped.current = true
+      jumpStartTime.current = performance.now()
+      
+      // We want a very visible jump: height ~0.4m to 0.6m
+      // y = v*t - 0.5*g*t^2
+      const h = 0.4 + Math.random() * 0.3
+      const hangTime = 0.8 + Math.random() * 0.2
+      // h = v*(hangTime/2) - 0.5*g*(hangTime/2)^2
+      // root at hangTime: 0 = v*hangTime - 0.5*g*hangTime^2 => v = 0.5*g*hangTime => g = 2v/hangTime
+      // peak is at t = hangTime/2 => h = v*(hangTime/2) - 0.5*(2v/hangTime)*(hangTime/2)^2 = v*hangTime/2 - v*hangTime/4 = v*hangTime/4
+      // => v = 4h / hangTime
+      const v = (4 * h) / hangTime
+      const g = (2 * v) / hangTime
+      jumpHeightParams.current = { v, g }
+
     } else if (!isShooting) {
       // Reset when not shooting
       hasJumped.current = false
       isJumping.current = false
-      jumpOffset.current = 0
-      jumpVelocity.current = 0
       if (groupRef.current) groupRef.current.position.y = 0
     }
   }, [isShooting])
 
-  useFrame((_, delta) => {
+  useFrame(() => {
     if (isJumping.current && groupRef.current) {
-      // Physics for jumping (lower gravity = longer hang time)
-      const dt = Math.min(delta, 0.05)
-      jumpOffset.current += jumpVelocity.current * dt
-      jumpVelocity.current -= 6.0 * dt // reduced gravity for floaty feel
+      const t = (performance.now() - jumpStartTime.current) / 1000
+      const { v, g } = jumpHeightParams.current
+      let y = v * t - 0.5 * g * t * t
 
-      if (jumpOffset.current <= 0) {
-        jumpOffset.current = 0
+      if (y <= 0 && t > 0.1) {
+        y = 0
         isJumping.current = false
-        jumpVelocity.current = 0
       }
-      groupRef.current.position.y = jumpOffset.current
+      groupRef.current.position.y = y
     }
   })
 

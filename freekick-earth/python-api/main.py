@@ -223,8 +223,13 @@ def _run_simulation(
             if dist_from_start >= wall_dist:
                 # Crossed the wall plane
                 lateral_dist = math.hypot(pt.x - wall_center_x, pt.z - wall_center_z)
-                # Wall is approx 3m wide (1.5m half-width) and max 2.15m high (with jump)
-                if lateral_dist <= 1.5 and pt.y <= 2.15:
+                # Wall is approx 3m wide (1.5m half-width)
+                # Base height is 1.85m. Calculate the dynamic jump height at time pt.t
+                # Average jump parameters matching the frontend: v=2.44, g=5.42 (h~0.55m, hangTime~0.9s)
+                jump_y = max(0, 2.44 * pt.t - 0.5 * 5.42 * pt.t * pt.t)
+                current_wall_height = 1.85 + jump_y
+
+                if lateral_dist <= 1.5 and pt.y <= current_wall_height:
                     wall_hit = True
                     processed_traj.append(pt)
                     
