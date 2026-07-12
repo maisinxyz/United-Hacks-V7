@@ -428,7 +428,10 @@ function ReactionGoalPlane({ onReact, targetCoords }: { onReact?: (x: number, y:
 function AimPreview({ config, ballPosition = [0, 0] }: { config: KickConfig; ballPosition?: [number, number] }) {
   const points = useMemo(() => {
     const pts = []
-    const radH = (-config.horizontalAngle * Math.PI) / 180 // -x is left
+    const dx = 0 - ballPosition[0]
+    const dz = 27 - ballPosition[1]
+    const baseAngle = Math.atan2(dx, dz)
+    const radH = (-config.horizontalAngle * Math.PI) / 180 + baseAngle // -x is left
     const radV = (config.verticalAngle * Math.PI) / 180
     // Draw a simple parabolic or straight arc preview
     for (let i = 0; i <= 6; i++) {

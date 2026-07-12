@@ -142,14 +142,18 @@ KEEPER_START_X = 0.0
 KEEPER_START_Y = 1.0         # standing height
 KEEPER_START_Z = 27.0        # on the goal line
 
-def _kick_to_velocity(power: float, h_angle_deg: float, v_angle_deg: float) -> tuple:
+def _kick_to_velocity(power: float, h_angle_deg: float, v_angle_deg: float, ball_start_x: float = 0.0, ball_start_z: float = 0.0) -> tuple:
     """Convert human-friendly kick params into a 3D velocity vector.
     Z axis = forward toward goal, X = lateral, Y = up.
     """
+    dx = 0.0 - ball_start_x
+    dz = 27.0 - ball_start_z
+    base_angle = math.atan2(dx, dz)
+
     # Negate h_angle_deg because in our 3D coordinate system, 
     # looking down +Z means +X is to the left of the screen.
     # A negative h_angle means "Left", so we want a positive X velocity.
-    h_rad = math.radians(-h_angle_deg)
+    h_rad = math.radians(-h_angle_deg) + base_angle
     v_rad = math.radians(v_angle_deg)
 
     vz = power * math.cos(v_rad) * math.cos(h_rad)  # forward
@@ -172,7 +176,7 @@ def _run_simulation(
     ball_start_z: float = 0.0,
 ) -> list[TrajectoryPoint]:
     """Call the Python engine and return a list of trajectory points."""
-    vx, vy, vz = _kick_to_velocity(power, h_angle, v_angle)
+    vx, vy, vz = _kick_to_velocity(power, h_angle, v_angle, ball_start_x, ball_start_z)
 
     kick = pe.KickParams()
     kick.initial_velocity = pe.Vector3D(vx, vy, vz)
