@@ -491,13 +491,19 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
             <div style={{ display: 'flex', gap: '8px' }}>
               {Array.from({ length: MAX_ATTEMPTS }).map((_, i) => {
                 const res = history[i]
+                const isCurrent = i === round && !res
                 let bgColor = 'rgba(255,255,255,0.2)'
-                if (res === 'goal') bgColor = '#22c55e'
-                else if (res) bgColor = '#ef4444'
+                let borderColor = 'rgba(255,255,255,0.5)'
+                if (res === 'goal') { bgColor = '#22c55e'; borderColor = '#4ade80' }
+                else if (res) { bgColor = '#ef4444'; borderColor = '#f87171' }
+                else if (isCurrent) { borderColor = 'rgba(255,255,255,0.9)' }
                 return (
                   <div key={i} style={{
                     width: '16px', height: '16px', borderRadius: '50%',
-                    background: bgColor, border: '2px solid rgba(255,255,255,0.5)'
+                    background: bgColor,
+                    border: `2px solid ${borderColor}`,
+                    boxShadow: isCurrent ? '0 0 6px rgba(255,255,255,0.6)' : 'none',
+                    transition: 'background 0.3s ease, border-color 0.3s ease',
                   }} />
                 )
               })}
