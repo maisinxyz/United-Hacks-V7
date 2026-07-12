@@ -223,10 +223,8 @@ def simulate_trajectory(kick: KickParams, env: Environment, ball_start_x: float 
                     hit_net = True
                 
                 if hit_net:
-                    state.velocity.x *= 0.1
-                    state.velocity.y *= 0.1
-                    state.velocity.z *= 0.1
-                    state.angular_velocity = Vector3D(0, 0, 0)
+                    traj.append(TrajectoryPoint(state.position.x, state.position.y, state.position.z))
+                    break
             else:
                 if (-3.66 - 0.11 < state.position.x < 3.66 + 0.11 and
                     state.position.y < 2.44 + 0.11 and state.position.z < 29.0 + 0.11):

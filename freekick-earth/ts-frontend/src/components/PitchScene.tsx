@@ -250,8 +250,8 @@ function CameraController({
       ref={controlsRef}
       makeDefault
       maxPolarAngle={Math.PI / 2 - 0.05} // Don't let camera go below ground
-      minDistance={restricted ? 2 : 0}
-      maxDistance={restricted ? 25 : 80}
+      minDistance={2}
+      maxDistance={80}
       dollySpeed={1.5}
       mouseButtons={{
         left: 1, // ROTATE
@@ -865,37 +865,45 @@ export function StadiumShell() {
 }
 
 export function WindParticles({ speed, direction }: { speed: number; direction: number }) {
-  const count = 60
+  const count = 300
   const particles = useMemo(() => {
     return Array.from({ length: count }).map(() => ({
       position: new THREE.Vector3(
-        (Math.random() - 0.5) * 60,
-        Math.random() * 20,
-        (Math.random() - 0.5) * 60
+        (Math.random() - 0.5) * 80,
+        Math.random() * 30,
+        (Math.random() - 0.5) * 80
       ),
-      length: 1 + Math.random() * 2,
+      length: 1 + Math.random() * 3,
+      speedVariance: 0.8 + Math.random() * 0.4,
+      verticalSway: (Math.random() - 0.5) * 2
     }))
   }, [count])
 
   const meshRef = useRef<THREE.InstancedMesh>(null!)
   const dirRad = THREE.MathUtils.degToRad(direction)
-  const vel = new THREE.Vector3(Math.sin(dirRad), 0, Math.cos(dirRad)).multiplyScalar(speed * 0.5 + 2) // minimum speed for visual effect
+  const baseSpeed = speed * 0.8 + 3
+  const vel = new THREE.Vector3(Math.sin(dirRad), 0, Math.cos(dirRad)).multiplyScalar(baseSpeed)
 
   const dummy = useMemo(() => new THREE.Object3D(), [])
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (!meshRef.current) return
+    const time = state.clock.getElapsedTime()
     particles.forEach((p, i) => {
-      p.position.addScaledVector(vel, delta)
-      // wrap around bounds (60x20x60)
-      if (p.position.x > 30) p.position.x -= 60
-      if (p.position.x < -30) p.position.x += 60
-      if (p.position.z > 30) p.position.z -= 60
-      if (p.position.z < -30) p.position.z += 60
+      p.position.x += vel.x * p.speedVariance * delta
+      p.position.z += vel.z * p.speedVariance * delta
+      p.position.y += Math.sin(time * 2 + i) * p.verticalSway * delta
+
+      if (p.position.x > 40) p.position.x -= 80
+      if (p.position.x < -40) p.position.x += 80
+      if (p.position.z > 40) p.position.z -= 80
+      if (p.position.z < -40) p.position.z += 80
+      if (p.position.y > 30) p.position.y -= 30
+      if (p.position.y < 0) p.position.y += 30
 
       dummy.position.copy(p.position)
-      // Align lines with velocity
-      dummy.lookAt(p.position.clone().add(vel))
+      const lookDir = p.position.clone().add(new THREE.Vector3(vel.x * p.speedVariance, Math.sin(time * 2 + i) * p.verticalSway, vel.z * p.speedVariance))
+      dummy.lookAt(lookDir)
       dummy.scale.set(1, 1, p.length)
       dummy.updateMatrix()
       meshRef.current.setMatrixAt(i, dummy.matrix)
@@ -903,11 +911,10 @@ export function WindParticles({ speed, direction }: { speed: number; direction: 
     meshRef.current.instanceMatrix.needsUpdate = true
   })
 
-  // Using a box geometry stretched on Z to act as a line
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, count]}>
-      <boxGeometry args={[0.05, 0.05, 1]} />
-      <meshBasicMaterial color="#e2e8f0" transparent opacity={0.4} />
+      <boxGeometry args={[0.04, 0.04, 1.5]} />
+      <meshBasicMaterial color="#ffffff" transparent opacity={0.5} />
     </instancedMesh>
   )
 }
