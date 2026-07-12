@@ -101,7 +101,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
   const [history, setHistory] = useState<string[]>([])
   const [gameOver, setGameOver] = useState(false)
   const [targetCoords, setTargetCoords] = useState<[number, number] | null>(null)
-  const [keeperFeedback, setKeeperFeedback] = useState<'save' | 'goal' | null>(null)
+  const [keeperFeedback, setKeeperFeedback] = useState<'miss' | 'goal' | null>(null)
   const keeperTargetTimerRef = useRef<number | null>(null)
 
   const isMyTurn = currentTurn === myId
@@ -212,13 +212,13 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
             break
             
           case 'shot_result':
-            if (data.result === 'save') {
-              setKeeperFeedback('save')
+            if (data.result === 'goal') {
+              setKeeperFeedback('goal')
+            } else {
+              setKeeperFeedback('miss')
               if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
                 navigator.vibrate?.([35, 40, 35])
               }
-            } else if (data.result === 'goal') {
-              setKeeperFeedback('goal')
             }
             setSimResult({
               trajectory: data.trajectory,
@@ -227,11 +227,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
               result: data.result,
               keeper_trajectory: []
             })
-            // Update scores
-            setPlayers(prev => ({
-              ...prev,
-              [data.player_id]: { ...prev[data.player_id], score: data.score }
-            }))
+            if (data.players) setPlayers(data.players)
             if (data.history) setHistory(data.history)
             setStep(5)
             break
@@ -492,7 +488,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
                 const res = history[i]
                 let bgColor = 'rgba(255,255,255,0.2)'
                 if (res === 'goal') bgColor = '#22c55e'
-                else if (res === 'miss') bgColor = '#ef4444'
+                else if (res) bgColor = '#ef4444'
                 return (
                   <div key={i} style={{
                     width: '16px', height: '16px', borderRadius: '50%',
@@ -522,7 +518,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
         {step === 5 && simResult && resultRevealed && (
           <div className="result-actions">
             <div className="result-banner">
-              {simResult.result === 'goal' ? <h2 className="result-goal" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(74, 222, 128, 0.5)' }}>⚽ GOAL!</h2> : simResult.result === 'save' ? <h2 className="result-goal" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(74, 222, 128, 0.5)' }}>🧤 SAVED!</h2> : <h2 className="result-miss" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(248, 113, 113, 0.5)' }}>❌ MISSED</h2>}
+              {simResult.result === 'goal' ? <h2 className="result-goal" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(74, 222, 128, 0.5)' }}>⚽ GOAL!</h2> : <h2 className="result-miss" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(248, 113, 113, 0.5)' }}>❌ MISSED</h2>}
             </div>
             <button className="wizard-btn try-again-btn" onClick={handleNextKick}>
               {round < MAX_ATTEMPTS - 1 ? 'Continue →' : 'See Final Score'}

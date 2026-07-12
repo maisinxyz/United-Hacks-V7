@@ -181,7 +181,7 @@ export default function PitchScene({
             <CornerFlag speed={config.conditions.wind_speed_m_s} direction={config.conditions.wind_direction_deg} />
           </>
         )}
-        <GoalPosts ballRef={ballRef} />
+        <GoalPosts ballRef={ballRef} keeperView={cleanGoalView} />
         <ReactionGoalPlane onReact={onReact} targetCoords={targetCoords} />
         {!cleanGoalView && <GoalPosts ballRef={ballRef} isNorth />}
         {!cleanGoalView && <DistanceMarkers />}
@@ -661,7 +661,7 @@ function DynamicNet({
   )
 }
 
-function GoalPosts({ ballRef, isNorth = false }: { ballRef: React.MutableRefObject<THREE.Mesh>; isNorth?: boolean }) {
+function GoalPosts({ ballRef, isNorth = false, keeperView = false }: { ballRef: React.MutableRefObject<THREE.Mesh>; isNorth?: boolean; keeperView?: boolean }) {
   const postRadius = 0.06
   const crossbarY = 2.44
   const halfWidth = 7.32 / 2
@@ -686,7 +686,7 @@ function GoalPosts({ ballRef, isNorth = false }: { ballRef: React.MutableRefObje
       </mesh>
 
       {/* Net Back */}
-      <DynamicNet width={7.32} height={crossbarY} position={[0, crossbarY / 2, netDepth]} ballRef={ballRef} />
+      {!keeperView && <DynamicNet width={7.32} height={crossbarY} position={[0, crossbarY / 2, netDepth]} ballRef={ballRef} />}
       {/* Net Left */}
       <DynamicNet width={netDepth} height={crossbarY} position={[-halfWidth, crossbarY / 2, netDepth / 2]} rotation={[0, Math.PI / 2, 0]} ballRef={ballRef} />
       {/* Net Right */}
@@ -694,9 +694,11 @@ function GoalPosts({ ballRef, isNorth = false }: { ballRef: React.MutableRefObje
       {/* Net Top */}
       <DynamicNet width={7.32} height={netDepth} position={[0, crossbarY, netDepth / 2]} rotation={[-Math.PI / 2, 0, 0]} ballRef={ballRef} />
 
-      <Text position={[0, crossbarY + 0.5, 0]} rotation={[0, Math.PI, 0]} fontSize={0.4} color="#1e6b38" anchorX="center" anchorY="bottom" font={undefined}>
-        GOAL
-      </Text>
+      {!keeperView && (
+        <Text position={[0, crossbarY + 0.5, 0]} rotation={[0, Math.PI, 0]} fontSize={0.4} color="#1e6b38" anchorX="center" anchorY="bottom" font={undefined}>
+          GOAL
+        </Text>
+      )}
     </group>
   )
 }

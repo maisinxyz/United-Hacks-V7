@@ -585,10 +585,19 @@ async def process_shot(manager, room, client_id: str, req: SimulateRequest, keep
             dist = math.hypot(kx - cx, ky - cy)
             if dist <= 1.5:
                 res = "save"
-    
+
+    keeper_id = room.roles.get("goalkeeper")
     if res == "goal":
         room.players[client_id]["score"] += 1
+    elif keeper_id and keeper_id in room.players:
+        room.players[keeper_id]["score"] += 1
+
     room.history.append(res)
+
+    players_state = {
+        pid: {"name": p["name"], "score": p["score"], "connected": p["connected"]}
+        for pid, p in room.players.items()
+    }
     
     await manager.broadcast(room, {
         "type": "shot_result",
@@ -596,6 +605,7 @@ async def process_shot(manager, room, client_id: str, req: SimulateRequest, keep
         "trajectory": [pt.model_dump() for pt in actual],
         "result": res,
         "score": room.players[client_id]["score"],
+        "players": players_state,
         "history": room.history
     })
 

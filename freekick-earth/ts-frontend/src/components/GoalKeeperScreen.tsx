@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 interface Props {
   stadiumName?: string
   step: number
-  outcome?: 'save' | 'goal' | null
+  outcome?: 'miss' | 'goal' | null
   onReact?: (x: number, y: number) => void
 }
 
@@ -46,7 +46,7 @@ export default function GoalKeeperScreen({ stadiumName, step, outcome }: Props) 
     )
   }
 
-  if (step >= 4.6 && outcome) {
+  if (step >= 4.6 && outcome === 'miss') {
     return (
       <div style={{
         position: 'absolute',
@@ -58,17 +58,17 @@ export default function GoalKeeperScreen({ stadiumName, step, outcome }: Props) 
         textAlign: 'center',
         padding: '0.85rem 1.25rem',
         borderRadius: '999px',
-        background: outcome === 'save' ? 'rgba(21, 128, 61, 0.65)' : 'rgba(153, 27, 27, 0.65)',
+        background: 'rgba(153, 27, 27, 0.65)',
         backdropFilter: 'blur(10px)',
         border: '1px solid rgba(255,255,255,0.12)',
         color: 'white',
         textShadow: '0 2px 8px rgba(0,0,0,0.8)'
       }}>
         <div style={{ fontSize: '0.85rem', letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800 }}>
-          {outcome === 'save' ? 'Save Confirmed' : 'Shot Finished'}
+          MISSED
         </div>
         <div style={{ fontSize: '1rem', fontWeight: 700 }}>
-          {outcome === 'save' ? 'Nice stop.' : 'Keep tracking the goal.'}
+          Keeper gets the point.
         </div>
       </div>
     )
