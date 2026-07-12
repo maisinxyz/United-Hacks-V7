@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react'
+import { Analytics } from '@vercel/analytics/react'
 import StepWizard from './components/StepWizard'
 import MultiplayerWizard from './components/MultiplayerWizard'
 import SpotifyPlayer from './components/SpotifyPlayer'
@@ -19,6 +20,7 @@ function App() {
         <StepWizard onMultiplayerMode={(mode, roomCode) => setMultiMode({ mode, roomCode })} />
       )}
       <SpotifyPlayer />
+      <Analytics />
     </>
   )
 }
