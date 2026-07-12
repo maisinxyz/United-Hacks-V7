@@ -97,6 +97,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
   const [round, setRound] = useState(0)
   const [history, setHistory] = useState<string[]>([])
   const [gameOver, setGameOver] = useState(false)
+  const [targetCoords, setTargetCoords] = useState<[number, number] | null>(null)
 
   const isMyTurn = currentTurn === myId
   const currentBallPos = ballPositions[round] || [0, 0]
@@ -145,6 +146,9 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
             break
             
           case 'keeper_reaction_phase':
+            if (data.target_x !== undefined && data.target_y !== undefined) {
+              setTargetCoords([data.target_x, data.target_y])
+            }
             setStep(4.5)
             break
             
@@ -431,6 +435,9 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
           instantCamera={step === -2 || step === -1 || step === 5}
           onTrajectoryComplete={() => setResultRevealed(true)}
           ballPosition={currentBallPos}
+          isLocked={step === 4.5 && myRole === 'goalkeeper'}
+          targetCoords={step === 4.5 && myRole === 'goalkeeper' ? targetCoords : null}
+          onReact={step === 4.5 && myRole === 'goalkeeper' ? handleKeeperReaction : undefined}
         />
       </div>
 

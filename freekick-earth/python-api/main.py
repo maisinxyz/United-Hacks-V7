@@ -269,22 +269,20 @@ def _run_simulation(
 
     return processed_traj
 
-def _classify_result(trajectory: list[TrajectoryPoint]) -> str:
-    """Determine if the kick was a goal or a specific type of miss."""
-    crossing_pt = None
+def _get_crossing_point(trajectory: list[TrajectoryPoint]) -> Optional[TrajectoryPoint]:
     prev_pt = None
-    
     for pt in trajectory:
         if prev_pt is not None and prev_pt.z < GOAL_DISTANCE and pt.z >= GOAL_DISTANCE:
-            # Interpolate to find exact crossing point
             fraction = (GOAL_DISTANCE - prev_pt.z) / (pt.z - prev_pt.z)
             crossing_y = prev_pt.y + fraction * (pt.y - prev_pt.y)
             crossing_x = prev_pt.x + fraction * (pt.x - prev_pt.x)
-            
-            # Create the interpolated point
-            crossing_pt = TrajectoryPoint(x=crossing_x, y=crossing_y, z=GOAL_DISTANCE, t=pt.t)
-            break
+            return TrajectoryPoint(x=crossing_x, y=crossing_y, z=GOAL_DISTANCE, t=pt.t)
         prev_pt = pt
+    return None
+
+def _classify_result(trajectory: list[TrajectoryPoint]) -> str:
+    """Determine if the kick was a goal or a specific type of miss."""
+    crossing_pt = _get_crossing_point(trajectory)
 
     if crossing_pt is None:
         return "miss_short"
@@ -709,8 +707,25 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, client_id: st
                 req = SimulateRequest(**data["params"])
                 room.pending_kick = (client_id, req)
                 
+                # Pre-calculate trajectory to get target for Goalkeeper
+                raw_traj = _run_simulation(
+                    power=req.power,
+                    h_angle=req.horizontal_angle,
+                    v_angle=req.vertical_angle,
+                    spin_rate=req.spin_rate,
+                    spin_axis=(req.spin_axis_x, req.spin_axis_y, req.spin_axis_z),
+                    air_density=req.conditions.air_density,
+                    wind_speed=req.conditions.wind_speed_m_s,
+                    wind_dir_deg=req.conditions.wind_direction_deg,
+                    ball_start_x=req.ball_start_x,
+                    ball_start_z=req.ball_start_z
+                )
+                crossing_pt = _get_crossing_point(raw_traj)
+                
                 await manager.broadcast(room, {
-                    "type": "keeper_reaction_phase"
+                    "type": "keeper_reaction_phase",
+                    "target_x": crossing_pt.x if crossing_pt else None,
+                    "target_y": crossing_pt.y if crossing_pt else None
                 })
                 
                 async def wait_for_reaction(room_ref, current_req):

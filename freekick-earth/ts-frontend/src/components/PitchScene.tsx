@@ -34,6 +34,9 @@ interface Props {
   instantCamera?: boolean
   onTrajectoryComplete?: () => void
   ballPosition?: [number, number]  // [x, z] offset for ball placement
+  isLocked?: boolean
+  targetCoords?: [number, number] | null
+  onReact?: (x: number, y: number) => void
 }
 
 export default function PitchScene({
@@ -50,6 +53,9 @@ export default function PitchScene({
   instantCamera = false,
   onTrajectoryComplete,
   ballPosition = [0, 0],
+  isLocked = false,
+  targetCoords,
+  onReact,
 }: Props) {
   const ballRef = useRef<THREE.Mesh>(null!)
   const [triggerRecenter, setTriggerRecenter] = useState(0)
@@ -109,6 +115,7 @@ export default function PitchScene({
           triggerRecenter={triggerRecenter}
           trackBall={stepIndex === 5}
           ballRef={ballRef}
+          isLocked={isLocked}
         />
 
         <ambientLight intensity={0.6} />
@@ -171,6 +178,7 @@ export default function PitchScene({
           </>
         )}
         <GoalPosts ballRef={ballRef} />
+        <ReactionGoalPlane onReact={onReact} targetCoords={targetCoords} />
         <GoalPosts ballRef={ballRef} isNorth />
         <DistanceMarkers />
 
@@ -243,6 +251,24 @@ export default function PitchScene({
         </button>
       </div>
 
+      {/* 3D Result Text */}
+      {resultVisible && result && (
+        <Billboard position={[0, 4, 27]}>
+          <Text
+            fontSize={3}
+            color={result === 'goal' ? '#ef4444' : '#22c55e'}
+            anchorX="center"
+            anchorY="middle"
+            font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfMZhrib2Bg-4.ttf"
+            characters="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"
+            outlineWidth={0.1}
+            outlineColor="#ffffff"
+          >
+            {result === 'goal' ? 'GOAL!' : 'SAVED!'}
+          </Text>
+        </Billboard>
+      )}
+      
       {resultVisible && result && (
         <div
           className="result-badge"
@@ -258,9 +284,9 @@ export default function PitchScene({
 }
 
 function CameraController({
-  position, target, instant = false, triggerRecenter = 0, trackBall = false, ballRef
+  position, target, instant = false, triggerRecenter = 0, trackBall = false, ballRef, isLocked = false
 }: {
-  position: [number, number, number]; target: [number, number, number]; instant?: boolean; triggerRecenter?: number; trackBall?: boolean; ballRef?: React.MutableRefObject<THREE.Mesh>
+  position: [number, number, number]; target: [number, number, number]; instant?: boolean; triggerRecenter?: number; trackBall?: boolean; ballRef?: React.MutableRefObject<THREE.Mesh>; isLocked?: boolean
 }) {
   const controlsRef = useRef<any>(null)
   const currentTarget = useMemo(() => new THREE.Vector3(), [])
@@ -323,6 +349,7 @@ function CameraController({
     <CameraControls
       ref={controlsRef}
       makeDefault
+      enabled={!isLocked}
       maxPolarAngle={Math.PI / 2 - 0.05} // Don't let camera go below ground
       minDistance={2}
       maxDistance={40}
@@ -363,8 +390,41 @@ function StaticBall({ position = [0, 0] }: { position?: [number, number] }) {
 }
 
 // ---------------------------------------------------------------
-// Aim Preview Line
+// Goal & Reaction Mechanics
 // ---------------------------------------------------------------
+
+function ReactionGoalPlane({ onReact, targetCoords }: { onReact?: (x: number, y: number) => void, targetCoords?: [number, number] | null }) {
+  if (!onReact) return null
+
+  const handleClick = (e: any) => {
+    e.stopPropagation() // Prevent click from bubbling
+    // e.point is the 3D intersect point
+    // The goal is at z = 27, centered at x = 0.
+    // Goal width is 7.32 (x goes from -3.66 to 3.66)
+    // Goal height is 2.44 (y goes from 0 to 2.44)
+    // We pass the exact x,y coordinates
+    onReact(e.point.x, e.point.y)
+  }
+
+  return (
+    <group position={[0, 0, 27]}>
+      {/* Invisible clickable plane covering the goal mouth */}
+      <mesh onClick={handleClick} position={[0, 2.44 / 2, 0]} visible={false}>
+        <planeGeometry args={[7.32, 2.44]} />
+        <meshBasicMaterial side={THREE.DoubleSide} transparent opacity={0.1} color="white" />
+      </mesh>
+      
+      {/* Target indicator */}
+      {targetCoords && (
+        <mesh position={[targetCoords[0], targetCoords[1], -0.1]}>
+          <ringGeometry args={[0.2, 0.3, 32]} />
+          <meshBasicMaterial color="#ef4444" side={THREE.DoubleSide} transparent opacity={0.8} />
+        </mesh>
+      )}
+    </group>
+  )
+}
+
 function AimPreview({ config, ballPosition = [0, 0] }: { config: KickConfig; ballPosition?: [number, number] }) {
   const points = useMemo(() => {
     const pts = []
@@ -1182,6 +1242,7 @@ export function Goalkeeper({ trajectory }: { trajectory: TrajectoryPoint[] }) {
           <meshStandardMaterial color="#dd6b20" />
         </mesh>
       </group>
+      
     </group>
   )
 }
