@@ -135,7 +135,7 @@ GOAL_DISTANCE = 27.0  # metres from kick spot
 BASELINE_DENSITY = 1.225  # sea-level, 15°C, dry air
 
 # Goalkeeper AI constants
-KEEPER_REACTION_TIME = 0.25  # seconds before keeper starts moving
+KEEPER_REACTION_TIME = 0.35  # seconds before keeper starts moving
 KEEPER_SPEED = 8.0           # m/s lateral movement speed
 KEEPER_REACH = 2.2           # m arm span + dive extension
 KEEPER_START_X = 0.0
