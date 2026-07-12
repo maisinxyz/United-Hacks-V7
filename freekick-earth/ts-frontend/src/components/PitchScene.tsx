@@ -170,7 +170,14 @@ function CameraController({
   position: [number, number, number]; target: [number, number, number]; instant?: boolean; triggerRecenter?: number; trackBall?: boolean; ballRef?: React.MutableRefObject<THREE.Mesh> 
 }) {
   const controlsRef = useRef<any>(null)
-  const vec = useMemo(() => new THREE.Vector3(), [])
+  const currentTarget = useMemo(() => new THREE.Vector3(), [])
+  const currentPos = useMemo(() => new THREE.Vector3(), [])
+  const desiredCam = useMemo(() => new THREE.Vector3(), [])
+  const followOffset = useMemo(
+    () => new THREE.Vector3(position[0] - target[0], position[1] - target[1], position[2] - target[2]),
+    [position, target]
+  )
+  const closeTrackOffset = useMemo(() => new THREE.Vector3(0, 2.8, -4.2), [])
 
   useEffect(() => {
     if (controlsRef.current) {
@@ -183,10 +190,31 @@ function CameraController({
   }, [position, target, instant, triggerRecenter])
 
   useFrame(() => {
-    if (trackBall && ballRef?.current && controlsRef.current) {
-      controlsRef.current.getTarget(vec)
-      vec.lerp(ballRef.current.position, 0.1)
-      controlsRef.current.setTarget(vec.x, vec.y, vec.z, false)
+    if (!trackBall || !ballRef?.current || !controlsRef.current) return
+
+    const ballPos = ballRef.current.position
+    desiredCam.copy(ballPos).add(closeTrackOffset)
+
+    if (controlsRef.current.getTarget) {
+      controlsRef.current.getTarget(currentTarget)
+      currentTarget.lerp(ballPos, 0.35)
+      controlsRef.current.setTarget(currentTarget.x, currentTarget.y, currentTarget.z, false)
+    }
+
+    if (controlsRef.current.getPosition) {
+      controlsRef.current.getPosition(currentPos)
+      currentPos.lerp(desiredCam, 0.35)
+      controlsRef.current.setPosition(currentPos.x, currentPos.y, currentPos.z, false)
+    } else {
+      controlsRef.current.setLookAt(
+        desiredCam.x,
+        desiredCam.y,
+        desiredCam.z,
+        ballPos.x,
+        ballPos.y,
+        ballPos.z,
+        false,
+      )
     }
   })
 
