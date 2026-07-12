@@ -178,6 +178,7 @@ export default function StepWizard() {
 
     setLoading(true)
     setResultRevealed(false)
+    setStep(5)
 
     // Apply deviation based on timing zone
     const devScale = timing.deviation

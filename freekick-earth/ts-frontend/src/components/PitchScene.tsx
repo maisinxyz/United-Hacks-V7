@@ -126,7 +126,7 @@ export default function PitchScene({
         )}
 
         {/* Trajectory animation when available */}
-        {stepIndex === 5 && trajectory && trajectory.length > 0 && (
+        {trajectory && trajectory.length > 0 && (
           <>
             <TrajectoryAnimation
               trajectory={trajectory}
@@ -176,10 +176,6 @@ function CameraController({
   const currentTarget = useMemo(() => new THREE.Vector3(), [])
   const currentPos = useMemo(() => new THREE.Vector3(), [])
   const desiredCam = useMemo(() => new THREE.Vector3(), [])
-  const followOffset = useMemo(
-    () => new THREE.Vector3(position[0] - target[0], position[1] - target[1], position[2] - target[2]),
-    [position, target]
-  )
   const closeTrackOffset = useMemo(() => new THREE.Vector3(0, 2.8, -4.2), [])
 
   useEffect(() => {
