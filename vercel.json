@@ -1,0 +1,10 @@
+{
+  "buildCommand": "cd freekick-earth/ts-frontend && npm install && npm run build",
+  "outputDirectory": "freekick-earth/ts-frontend/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
