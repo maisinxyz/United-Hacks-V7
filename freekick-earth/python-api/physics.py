@@ -246,6 +246,27 @@ def simulate_trajectory(kick: KickParams, env: Environment, ball_start_x: float 
                         state.position.z = 29.0 + 0.11
                         if state.velocity.z < 0: state.velocity.z = -state.velocity.z * 0.3
 
+        # Stadium Boundary Collision Detection
+        STADIUM_X_MAX = 38.0
+        STADIUM_X_MIN = -38.0
+        STADIUM_Z_MAX = 45.0
+        STADIUM_Z_MIN = -25.0
+        STADIUM_RESTITUTION = 0.5
+        
+        if state.position.x > STADIUM_X_MAX - 0.11:
+            state.position.x = STADIUM_X_MAX - 0.11
+            if state.velocity.x > 0: state.velocity.x = -state.velocity.x * STADIUM_RESTITUTION
+        elif state.position.x < STADIUM_X_MIN + 0.11:
+            state.position.x = STADIUM_X_MIN + 0.11
+            if state.velocity.x < 0: state.velocity.x = -state.velocity.x * STADIUM_RESTITUTION
+            
+        if state.position.z > STADIUM_Z_MAX - 0.11:
+            state.position.z = STADIUM_Z_MAX - 0.11
+            if state.velocity.z > 0: state.velocity.z = -state.velocity.z * STADIUM_RESTITUTION
+        elif state.position.z < STADIUM_Z_MIN + 0.11:
+            state.position.z = STADIUM_Z_MIN + 0.11
+            if state.velocity.z < 0: state.velocity.z = -state.velocity.z * STADIUM_RESTITUTION
+
         # Ground Collision Detection
         if state.position.y <= 0.11:
             state.position.y = 0.11

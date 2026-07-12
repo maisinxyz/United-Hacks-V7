@@ -10,6 +10,7 @@ import { Line, Text, CameraControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { TrajectoryPoint } from '../api'
 import type { KickConfig } from './StepWizard'
+import { getStadiumPrimitives } from './stadiums3d'
 import BCPlace from './BCPlace'
 
 export interface CameraConfig {
@@ -529,68 +530,30 @@ function GoalPosts({ ballRef, isNorth = false }: { ballRef: React.MutableRefObje
 }
 
 // ---------------------------------------------------------------
-// Procedural Arena
+// Procedural Arena — per-stadium 3D models
 // ---------------------------------------------------------------
 
-const STADIUM_THEMES: Record<string, { seats: string; archType: 'bowl' | 'canopy' | 'rectangular' }> = {
-  azteca: { seats: '#166534', archType: 'rectangular' }, // Mexico (Steep tiers)
-  metlife: { seats: '#1e3a8a', archType: 'rectangular' }, // US (Classic blocky)
-  rosebowl: { seats: '#b91c1c', archType: 'bowl' },       // US (Open oval)
-  sofi: { seats: '#1e3a8a', archType: 'canopy' },         // US (Massive roof)
-  default: { seats: '#475569', archType: 'canopy' },
-}
-
 function ArenaEnvironment({ stadiumId, hideRoof = false }: { stadiumId: string; hideRoof?: boolean }) {
-  const theme = STADIUM_THEMES[stadiumId] || STADIUM_THEMES.default
-  
-  const blocks = []
-
-  // Base lower tier (exists in all)
-  blocks.push({ pos: [-40, 5, 10], rot: [0, 0, -Math.PI / 8], size: [20, 2, 120], color: theme.seats }) // Left
-  blocks.push({ pos: [40, 5, 10], rot: [0, 0, Math.PI / 8], size: [20, 2, 120], color: theme.seats })  // Right
-  blocks.push({ pos: [0, 5, 50], rot: [-Math.PI / 8, 0, 0], size: [100, 2, 20], color: theme.seats })   // Back
-  blocks.push({ pos: [0, 5, -30], rot: [Math.PI / 8, 0, 0], size: [100, 2, 20], color: theme.seats })   // Front
-
-  if (theme.archType === 'bowl') {
-    // Open bowl: Add a continuous upper tier, no roof
-    blocks.push({ pos: [-55, 15, 10], rot: [0, 0, -Math.PI / 6], size: [20, 2, 140], color: theme.seats })
-    blocks.push({ pos: [55, 15, 10], rot: [0, 0, Math.PI / 6], size: [20, 2, 140], color: theme.seats })
-    blocks.push({ pos: [0, 15, 65], rot: [-Math.PI / 6, 0, 0], size: [130, 2, 20], color: theme.seats })
-    blocks.push({ pos: [0, 15, -45], rot: [Math.PI / 6, 0, 0], size: [130, 2, 20], color: theme.seats })
-  } else if (theme.archType === 'rectangular') {
-    // Steep rectangular: 3 distinct tiers, no continuous corners, large jumbotron
-    blocks.push({ pos: [-45, 18, 10], rot: [0, 0, -Math.PI / 4], size: [20, 2, 100], color: theme.seats })
-    blocks.push({ pos: [45, 18, 10], rot: [0, 0, Math.PI / 4], size: [20, 2, 100], color: theme.seats })
-    // Jumbotrons
-    blocks.push({ pos: [0, 25, 60], rot: [0, 0, 0], size: [30, 15, 2], color: '#111111' })
-    blocks.push({ pos: [0, 25, -40], rot: [0, 0, 0], size: [30, 15, 2], color: '#111111' })
-  } else if (theme.archType === 'canopy') {
-    // Canopy (SoFi style): massive roof covering everything
-    blocks.push({ pos: [-50, 15, 10], rot: [0, 0, -Math.PI / 5], size: [20, 2, 130], color: theme.seats })
-    blocks.push({ pos: [50, 15, 10], rot: [0, 0, Math.PI / 5], size: [20, 2, 130], color: theme.seats })
-    
-    if (!hideRoof) {
-      // Massive curved roof (simulated with large thin blocks)
-      blocks.push({ pos: [0, 40, 10], rot: [0, 0, 0], size: [140, 2, 160], color: '#ffffff' }) // Main canopy
-      // Pillars
-      blocks.push({ pos: [-65, 20, 50], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
-      blocks.push({ pos: [65, 20, 50], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
-      blocks.push({ pos: [-65, 20, -30], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
-      blocks.push({ pos: [65, 20, -30], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
-      
-      // Center hanging jumbotron (Oculus style)
-      blocks.push({ pos: [0, 25, 10], rot: [0, 0, 0], size: [20, 5, 20], color: '#111111' })
-    }
-  }
+  const primitives = useMemo(() => getStadiumPrimitives(stadiumId, hideRoof), [stadiumId, hideRoof])
 
   return (
     <group>
-      {blocks.map((b, i) => (
-        <mesh key={i} position={new THREE.Vector3(...b.pos)} rotation={new THREE.Euler(...b.rot)} receiveShadow castShadow>
-          <boxGeometry args={b.size as [number, number, number]} />
-          <meshStandardMaterial color={b.color} roughness={0.9} />
-        </mesh>
-      ))}
+      {primitives.map((p, i) => {
+        if (p.type === 'cylinder') {
+          return (
+            <mesh key={i} position={new THREE.Vector3(...p.pos)} rotation={new THREE.Euler(...p.rot)} receiveShadow castShadow>
+              <cylinderGeometry args={p.args} />
+              <meshStandardMaterial color={p.color} roughness={0.9} transparent={p.opacity != null} opacity={p.opacity ?? 1} />
+            </mesh>
+          )
+        }
+        return (
+          <mesh key={i} position={new THREE.Vector3(...p.pos)} rotation={new THREE.Euler(...p.rot)} receiveShadow castShadow>
+            <boxGeometry args={p.size as [number, number, number]} />
+            <meshStandardMaterial color={p.color} roughness={0.9} transparent={p.opacity != null} opacity={p.opacity ?? 1} />
+          </mesh>
+        )
+      })}
     </group>
   )
 }
