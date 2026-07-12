@@ -6,15 +6,21 @@
 import { useState } from 'react'
 import StepWizard from './components/StepWizard'
 import MultiplayerWizard from './components/MultiplayerWizard'
+import SpotifyPlayer from './components/SpotifyPlayer'
 
 function App() {
   const [multiMode, setMultiMode] = useState<{ mode: 'create' | 'join', roomCode?: string } | null>(null)
 
-  if (multiMode) {
-    return <MultiplayerWizard mode={multiMode.mode} roomCode={multiMode.roomCode} onExit={() => setMultiMode(null)} />
-  }
-
-  return <StepWizard onMultiplayerMode={(mode, roomCode) => setMultiMode({ mode, roomCode })} />
+  return (
+    <>
+      {multiMode ? (
+        <MultiplayerWizard mode={multiMode.mode} roomCode={multiMode.roomCode} onExit={() => setMultiMode(null)} />
+      ) : (
+        <StepWizard onMultiplayerMode={(mode, roomCode) => setMultiMode({ mode, roomCode })} />
+      )}
+      <SpotifyPlayer />
+    </>
+  )
 }
 
 export default App

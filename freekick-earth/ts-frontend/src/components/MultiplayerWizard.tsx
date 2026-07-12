@@ -2,7 +2,7 @@
  * MultiplayerWizard — WebSocket-driven multiplayer flow.
  */
 
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import PowerOverlay from './PowerOverlay'
 import HorizontalAngleOverlay from './HorizontalAngleOverlay'
 import VerticalAngleOverlay from './VerticalAngleOverlay'
@@ -205,7 +205,13 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
       try {
         const result = await runSimulation({
           stadium_id: stadium.id,
-          ...config,
+          power: config.power,
+          horizontal_angle: config.horizontalAngle,
+          vertical_angle: config.verticalAngle,
+          spin_rate: config.spinRate,
+          spin_axis_x: config.spinAxisX,
+          spin_axis_y: config.spinAxisY,
+          spin_axis_z: config.spinAxisZ,
           conditions,
           ball_start_x: currentBallPos[0],
           ball_start_z: currentBallPos[1],
