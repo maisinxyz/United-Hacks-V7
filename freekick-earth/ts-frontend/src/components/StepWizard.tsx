@@ -48,13 +48,17 @@ const MAX_ATTEMPTS = 5
 const STEP_COUNT = 7
 
 /** Generate a random ball position outside the penalty box but inside the attacking half.
- *  Penalty box: x ∈ [-9, 9], z ∈ [10, 27]. We pick outside that region.
- *  x ∈ [-12, 12], z ∈ [2, 12] — varying distances from goal */
+ *  Attacking half: x ∈ [-19, 19], z ∈ [1, 26] (with margin from touchlines).
+ *  Penalty box excluded: x ∈ [-12, 12], z ∈ [13, 27].
+ *  Uses rejection sampling so corners and wide positions appear naturally. */
 function generateRandomPositions(count: number): [number, number][] {
   const positions: [number, number][] = []
   for (let i = 0; i < count; i++) {
-    const x = Math.round((Math.random() * 24 - 12) * 10) / 10  // -12 to 12
-    const z = Math.round((Math.random() * 10 + 2) * 10) / 10   // 2 to 12
+    let x: number, z: number
+    do {
+      x = Math.round((Math.random() * 38 - 19) * 10) / 10   // -19 to 19
+      z = Math.round((Math.random() * 25 + 1) * 10) / 10    // 1 to 26
+    } while (x >= -12 && x <= 12 && z >= 13)                 // reject if inside penalty box
     positions.push([x, z])
   }
   return positions
