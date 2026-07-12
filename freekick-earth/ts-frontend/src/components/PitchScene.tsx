@@ -6,7 +6,7 @@
 
 import { useRef, useState, useMemo, useEffect, forwardRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Line, Text, CameraControls, Sky, Cloud } from '@react-three/drei'
+import { Line, Text, CameraControls, Sky, Cloud, Billboard } from '@react-three/drei'
 import * as THREE from 'three'
 import type { TrajectoryPoint } from '../api'
 import type { KickConfig } from './StepWizard'
@@ -30,7 +30,6 @@ interface Props {
   stepIndex: number
   config: KickConfig
   instantCamera?: boolean
-  restricted?: boolean
   onTrajectoryComplete?: () => void
   ballPosition?: [number, number]  // [x, z] offset for ball placement
 }
@@ -47,7 +46,6 @@ export default function PitchScene({
   stepIndex,
   config,
   instantCamera = false,
-  restricted = false,
   onTrajectoryComplete,
   ballPosition = [0, 0],
 }: Props) {
@@ -72,7 +70,6 @@ export default function PitchScene({
           triggerRecenter={triggerRecenter}
           trackBall={stepIndex === 5}
           ballRef={ballRef}
-          restricted={restricted}
         />
 
         <ambientLight intensity={0.6} />
@@ -187,9 +184,9 @@ export default function PitchScene({
 }
 
 function CameraController({
-  position, target, instant = false, triggerRecenter = 0, trackBall = false, ballRef, restricted = false
+  position, target, instant = false, triggerRecenter = 0, trackBall = false, ballRef
 }: {
-  position: [number, number, number]; target: [number, number, number]; instant?: boolean; triggerRecenter?: number; trackBall?: boolean; ballRef?: React.MutableRefObject<THREE.Mesh>; restricted?: boolean
+  position: [number, number, number]; target: [number, number, number]; instant?: boolean; triggerRecenter?: number; trackBall?: boolean; ballRef?: React.MutableRefObject<THREE.Mesh>
 }) {
   const controlsRef = useRef<any>(null)
   const currentTarget = useMemo(() => new THREE.Vector3(), [])
@@ -921,112 +918,29 @@ function DefensiveWall({ ballPosition, isShooting }: { ballPosition: [number, nu
   )
 }
 
+// Shared texture for all wall players (loaded once)
+const playerTexture = new THREE.TextureLoader().load('/player_sprite.png')
+playerTexture.colorSpace = THREE.SRGBColorSpace
+
 function WallPlayer({ offsetX }: { offsetX: number }) {
-  // A simple blocky player (low-poly person)
-  const skinColor = "#fcd34d" // generic light skin
-  const shirtColor = "#1e3a8a" // dark blue
-  const shortsColor = "#ffffff" // white
-  const socksColor = "#1e3a8a" // dark blue
-  const shoesColor = "#111111" // black
-  const hairColor = "#3f2b18" // dark brown
+  // Photorealistic billboard sprite — always faces camera
+  const spriteW = 1.0  // width in world units
+  const spriteH = 1.85 // height in world units (roughly human proportions)
 
   return (
-    <group position={[offsetX, 0, 0]}>
-      {/* Head */}
-      <mesh position={[0, 1.7, 0]} castShadow>
-        <sphereGeometry args={[0.12, 16, 16]} />
-        <meshStandardMaterial color={skinColor} roughness={0.6} />
-      </mesh>
-      
-      {/* Hair */}
-      <mesh position={[0, 1.73, -0.02]} castShadow>
-        <sphereGeometry args={[0.125, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshStandardMaterial color={hairColor} roughness={0.9} />
-      </mesh>
-
-      {/* Torso */}
-      <mesh position={[0, 1.25, 0]} castShadow>
-        <boxGeometry args={[0.35, 0.55, 0.18]} />
-        <meshStandardMaterial color={shirtColor} roughness={0.8} />
-      </mesh>
-
-      {/* Left Arm (covering crotch) */}
-      <group position={[-0.2, 1.45, 0]} rotation={[0.4, 0.2, -0.5]}>
-        <mesh position={[0, -0.2, 0]} castShadow>
-          <cylinderGeometry args={[0.05, 0.045, 0.45, 8]} />
-          <meshStandardMaterial color={skinColor} />
+    <group position={[offsetX, spriteH / 2, 0]}>
+      <Billboard follow lockX={false} lockY={false} lockZ={false}>
+        <mesh castShadow>
+          <planeGeometry args={[spriteW, spriteH]} />
+          <meshStandardMaterial
+            map={playerTexture}
+            transparent
+            alphaTest={0.5}
+            side={THREE.DoubleSide}
+            roughness={0.7}
+          />
         </mesh>
-        <mesh position={[0, -0.05, 0]} castShadow>
-          <cylinderGeometry args={[0.055, 0.05, 0.15, 8]} />
-          <meshStandardMaterial color={shirtColor} />
-        </mesh>
-      </group>
-
-      {/* Right Arm (covering crotch) */}
-      <group position={[0.2, 1.45, 0]} rotation={[0.4, -0.2, 0.5]}>
-        <mesh position={[0, -0.2, 0]} castShadow>
-          <cylinderGeometry args={[0.05, 0.045, 0.45, 8]} />
-          <meshStandardMaterial color={skinColor} />
-        </mesh>
-        <mesh position={[0, -0.05, 0]} castShadow>
-          <cylinderGeometry args={[0.055, 0.05, 0.15, 8]} />
-          <meshStandardMaterial color={shirtColor} />
-        </mesh>
-      </group>
-
-      {/* Pelvis/Shorts */}
-      <mesh position={[0, 0.9, 0]} castShadow>
-        <boxGeometry args={[0.35, 0.15, 0.2]} />
-        <meshStandardMaterial color={shortsColor} roughness={0.8} />
-      </mesh>
-
-      {/* Left Leg */}
-      <group position={[-0.1, 0.9, 0]}>
-        {/* Upper leg (shorts) */}
-        <mesh position={[0, -0.2, 0]} castShadow>
-          <cylinderGeometry args={[0.08, 0.07, 0.4, 8]} />
-          <meshStandardMaterial color={shortsColor} />
-        </mesh>
-        {/* Knee (skin) */}
-        <mesh position={[0, -0.45, 0]} castShadow>
-          <cylinderGeometry args={[0.065, 0.065, 0.1, 8]} />
-          <meshStandardMaterial color={skinColor} />
-        </mesh>
-        {/* Lower leg (socks) */}
-        <mesh position={[0, -0.65, 0]} castShadow>
-          <cylinderGeometry args={[0.065, 0.06, 0.3, 8]} />
-          <meshStandardMaterial color={socksColor} />
-        </mesh>
-        {/* Shoe */}
-        <mesh position={[0, -0.85, 0.05]} castShadow>
-          <boxGeometry args={[0.1, 0.1, 0.2]} />
-          <meshStandardMaterial color={shoesColor} />
-        </mesh>
-      </group>
-
-      {/* Right Leg */}
-      <group position={[0.1, 0.9, 0]}>
-        {/* Upper leg (shorts) */}
-        <mesh position={[0, -0.2, 0]} castShadow>
-          <cylinderGeometry args={[0.08, 0.07, 0.4, 8]} />
-          <meshStandardMaterial color={shortsColor} />
-        </mesh>
-        {/* Knee (skin) */}
-        <mesh position={[0, -0.45, 0]} castShadow>
-          <cylinderGeometry args={[0.065, 0.065, 0.1, 8]} />
-          <meshStandardMaterial color={skinColor} />
-        </mesh>
-        {/* Lower leg (socks) */}
-        <mesh position={[0, -0.65, 0]} castShadow>
-          <cylinderGeometry args={[0.065, 0.06, 0.3, 8]} />
-          <meshStandardMaterial color={socksColor} />
-        </mesh>
-        {/* Shoe */}
-        <mesh position={[0, -0.85, 0.05]} castShadow>
-          <boxGeometry args={[0.1, 0.1, 0.2]} />
-          <meshStandardMaterial color={shoesColor} />
-        </mesh>
-      </group>
+      </Billboard>
     </group>
   )
 }

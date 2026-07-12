@@ -272,7 +272,6 @@ export default function StepWizard() {
           stepIndex={step}
           config={config}
           instantCamera={step === -2 || step === -1 || step === 5}
-          restricted={step >= 0 && step <= 4}
           onTrajectoryComplete={() => setResultRevealed(true)}
           ballPosition={currentBallPos}
         />
