@@ -97,6 +97,14 @@ export default function ShotTimingOverlay({ stamina, onResult }: Props) {
 
     setResultZone(zone)
 
+    // Play kick sound instantly when they shoot (from 1s to 2s as original)
+    const kickAudio = new Audio('/kick.mp3')
+    kickAudio.currentTime = 1
+    kickAudio.play().catch(e => console.error('Audio play error:', e))
+    setTimeout(() => {
+      kickAudio.pause()
+    }, 1000)
+
     // Brief flash of the result, then fire callback
     setTimeout(() => {
       onResult({ zone, deviation, staminaCost })
