@@ -277,8 +277,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
   const back = () => setStep((s) => Math.max(s - 1, 0))
 
   const handleReadyToKick = () => {
-    const kickData = { power: config.power, horizontal_angle: config.horizontalAngle, vertical_angle: config.verticalAngle, spin_rate: config.spinRate, spin_axis_x: config.spinAxisX, spin_axis_y: config.spinAxisY, spin_axis_z: config.spinAxisZ, ball_start_x: currentBallPos[0], ball_start_z: currentBallPos[1], stadium_id: stadium?.id, conditions: conditions }
-    ws?.send(JSON.stringify({ type: 'take_shot', params: kickData }))
+    setStep(4)
   }
 
   const handleKeeperReaction = (x: number, y: number) => {
@@ -292,7 +291,6 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
     setStamina((prev) => Math.max(0, prev - timing.staminaCost))
     setLoading(true)
     setResultRevealed(false)
-    setStep(5)
 
     const devScale = timing.deviation
     const hDeviation = (Math.random() - 0.5) * 2 * devScale * 8
