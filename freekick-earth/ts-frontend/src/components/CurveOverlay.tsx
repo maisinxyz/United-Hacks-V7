@@ -17,6 +17,9 @@ export default function CurveOverlay({ config, onUpdate, onKick, onBack, loading
   const [y, setY] = useState(() => Math.round(-config.spinAxisY * (config.spinRate / MAX_SPIN) * 100) || 0)
   const [z, setZ] = useState(() => Math.round(config.spinAxisZ * (config.spinRate / MAX_SPIN) * 100) || 0)
 
+  const lastUpdate = useRef(0)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   const handleSliderChange = (axis: 'X' | 'Y' | 'Z', value: number) => {
     let newX = axis === 'X' ? value : x
     let newY = axis === 'Y' ? value : y
@@ -36,12 +39,19 @@ export default function CurveOverlay({ config, onUpdate, onKick, onBack, loading
       spinAxisZ = newZ / maxVal
     }
 
-    onUpdate({
-      spinRate,
-      spinAxisX,
-      spinAxisY,
-      spinAxisZ
-    })
+    const payload = { spinRate, spinAxisX, spinAxisY, spinAxisZ }
+    const now = Date.now()
+    
+    if (now - lastUpdate.current > 100) {
+      lastUpdate.current = now
+      onUpdate(payload)
+    } else {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      timeoutRef.current = setTimeout(() => {
+        lastUpdate.current = Date.now()
+        onUpdate(payload)
+      }, 100)
+    }
   }
 
   // Same dynamic positioning: if ball is on left, panel goes left.

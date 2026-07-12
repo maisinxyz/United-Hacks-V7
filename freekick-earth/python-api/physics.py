@@ -223,7 +223,7 @@ def simulate_trajectory(kick: KickParams, env: Environment, ball_start_x: float 
                     hit_net = True
                 
                 if hit_net:
-                    traj.append(TrajectoryPoint(state.position.x, state.position.y, state.position.z))
+                    save_state(state)
                     break
             else:
                 if (-3.66 - 0.11 < state.position.x < 3.66 + 0.11 and
