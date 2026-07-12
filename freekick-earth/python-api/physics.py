@@ -17,7 +17,7 @@ BALL_RADIUS = 0.11         # m (standard size 5 football)
 BALL_MASS = 0.43           # kg
 BALL_CROSS_SECTION = math.pi * BALL_RADIUS * BALL_RADIUS
 DRAG_COEFFICIENT = 0.25    # C_d
-MAGNUS_COEFFICIENT = 0.45  # C_m (Increased to allow for dramatic Roberto Carlos style curves)
+MAGNUS_COEFFICIENT = 0.8  # C_m (Increased to allow for dramatic Roberto Carlos style curves)
 TIMESTEP = 0.0166667       # ~60Hz
 
 class Vector3D:
