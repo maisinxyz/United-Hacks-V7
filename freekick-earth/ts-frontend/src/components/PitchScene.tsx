@@ -235,9 +235,10 @@ function CameraController({
   useEffect(() => {
     if (controlsRef.current) {
       // Hard bound the camera to stay inside the stadium walls
+      // Expanded from 45/55 to 100 so the camera has room to zoom out!
       const box = new THREE.Box3(
-        new THREE.Vector3(-45, 0.5, -55),
-        new THREE.Vector3(45, 60, 55)
+        new THREE.Vector3(-100, 0.5, -100),
+        new THREE.Vector3(100, 100, 100)
       )
       controlsRef.current.setBoundary(box)
       controlsRef.current.boundaryEnclosesCamera = true
@@ -253,14 +254,14 @@ function CameraController({
       maxDistance={restricted ? 25 : 80}
       dollySpeed={1.5}
       mouseButtons={{
-        left: 1, // ACTION.ROTATE
-        middle: 8, // ACTION.DOLLY
+        left: 1, // ROTATE
+        middle: 16, // DOLLY
         right: 0, // Disable TRUCK completely
-        wheel: 8, // ACTION.DOLLY
+        wheel: 16, // DOLLY
       }}
       touches={{
-        one: 32, // ACTION.TOUCH_ROTATE
-        two: 256, // TOUCH_DOLLY only
+        one: 64, // TOUCH_ROTATE
+        two: 1024, // TOUCH_DOLLY only
         three: 0, // Disable TOUCH_TRUCK
       }}
     />
