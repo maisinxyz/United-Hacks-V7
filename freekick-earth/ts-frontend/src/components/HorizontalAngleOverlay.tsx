@@ -104,7 +104,7 @@ export default function HorizontalAngleOverlay({ angle, onUpdate, onNext, onBack
       </div>
 
       <div className="step-actions">
-        <button className="wizard-btn secondary" onClick={onBack}>← Back</button>
+        <button className="wizard-btn" onClick={onBack} style={{ background: '#64748b', color: 'white', border: 'none', boxShadow: 'none' }}>← Back</button>
         <button className="wizard-btn primary" onClick={onNext}>Next →</button>
       </div>
     </div>

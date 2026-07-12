@@ -118,7 +118,7 @@ export default function SpinOverlay({ config, onUpdate, onKick, onBack, loading 
       </div>
 
       <div className="wizard-actions">
-        <button className="wizard-btn outline" onClick={onBack}>Back</button>
+        <button className="wizard-btn outline" onClick={onBack} style={{ background: '#64748b', color: 'white', border: 'none', boxShadow: 'none' }}>Back</button>
         <button className="wizard-btn primary" onClick={onKick} disabled={loading}>
           {loading ? 'Simulating...' : 'KICK! ⚽'}
         </button>
