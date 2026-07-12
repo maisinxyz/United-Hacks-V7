@@ -144,6 +144,10 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
             socket?.close()
             break
             
+          case 'keeper_reaction_phase':
+            setStep(4.5)
+            break
+            
           case 'room_state':
             setPlayers(data.players)
             if (data.roles) setRoles(data.roles)
@@ -273,7 +277,13 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
   const back = () => setStep((s) => Math.max(s - 1, 0))
 
   const handleReadyToKick = () => {
-    setStep(4)
+    const kickData = { power: config.power, horizontal_angle: config.horizontalAngle, vertical_angle: config.verticalAngle, spin_rate: config.spinRate, spin_axis_x: config.spinAxisX, spin_axis_y: config.spinAxisY, spin_axis_z: config.spinAxisZ, ball_start_x: currentBallPos[0], ball_start_z: currentBallPos[1] }
+    ws?.send(JSON.stringify({ type: 'take_shot', params: kickData }))
+  }
+
+  const handleKeeperReaction = (x: number, y: number) => {
+    ws?.send(JSON.stringify({ type: 'keeper_reaction', x, y }))
+    setStep(4.6)
   }
 
   const handleTimingResult = (timing: TimingResult) => {
@@ -380,6 +390,33 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
     )
   }
 
+  let uiContent = null
+  if (myRole === 'kicker') {
+    if (step === 4.5 || step === 4.6) {
+      uiContent = (
+        <div className="overlay-card frosted center-panel select-none">
+          <h2>Waiting for Goalkeeper...</h2>
+          <p>The Goalkeeper is reacting to your shot!</p>
+        </div>
+      )
+    } else if (isMyTurn) {
+      if (step === 0) uiContent = <PowerOverlay power={config.power} onUpdate={(p) => updateConfig({ power: p })} onNext={next} onBack={() => {}} />
+      else if (step === 1) uiContent = <HorizontalAngleOverlay angle={config.horizontalAngle} onUpdate={(a) => updateConfig({ horizontalAngle: a })} onNext={next} onBack={back} ballPosition={currentBallPos} />
+      else if (step === 2) uiContent = <VerticalAngleOverlay angle={config.verticalAngle} onUpdate={(a) => updateConfig({ verticalAngle: a })} onNext={next} onBack={back} />
+      else if (step === 3) uiContent = <CurveOverlay config={{...config, stadiumId: stadium?.id, conditions}} onUpdate={updateConfig} onKick={handleReadyToKick} onBack={back} loading={loading} ballPosition={currentBallPos} />
+      else if (step === 4) uiContent = <ShotTimingOverlay stamina={stamina} onResult={handleTimingResult} />
+    } else {
+      uiContent = (
+         <div className="overlay-card frosted bottom-center-panel" style={{ padding: '2rem', textAlign: 'center' }}>
+           <h2>Opponent's Turn</h2>
+           <p>Waiting for them to take their shot...</p>
+         </div>
+      )
+    }
+  } else {
+    uiContent = <GoalKeeperScreen stadiumName={stadium?.name} step={step} onReact={handleKeeperReaction} />
+  }
+
   return (
     <div className="wizard-container">
       <div className="scene-background">
@@ -442,22 +479,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
       {(step >= 0 && step <= 3) && conditions && <StadiumBadge conditions={conditions} />}
 
       <div className="overlay-container">
-        {myRole === 'goalkeeper' && step >= 0 && step <= 4 && (
-          <GoalKeeperScreen stadiumName={conditions?.stadium.name} />
-        )}
-
-        {myRole === 'kicker' && !isMyTurn && step >= 0 && step <= 4 && (
-           <div className="overlay-card frosted bottom-center-panel" style={{ padding: '2rem', textAlign: 'center' }}>
-             <h2>Opponent's Turn</h2>
-             <p>Waiting for them to take their shot...</p>
-           </div>
-        )}
-
-        {myRole === 'kicker' && isMyTurn && step === 0 && <PowerOverlay power={config.power} onUpdate={(p) => updateConfig({ power: p })} onNext={next} onBack={() => {}} />}
-        {myRole === 'kicker' && isMyTurn && step === 1 && <HorizontalAngleOverlay angle={config.horizontalAngle} onUpdate={(a) => updateConfig({ horizontalAngle: a })} onNext={next} onBack={back} ballPosition={currentBallPos} />}
-        {myRole === 'kicker' && isMyTurn && step === 2 && <VerticalAngleOverlay angle={config.verticalAngle} onUpdate={(a) => updateConfig({ verticalAngle: a })} onNext={next} onBack={back} />}
-        {myRole === 'kicker' && isMyTurn && step === 3 && <CurveOverlay config={{...config, stadiumId: stadium?.id, conditions}} onUpdate={updateConfig} onKick={handleReadyToKick} onBack={back} loading={loading} ballPosition={currentBallPos} />}
-        {myRole === 'kicker' && isMyTurn && step === 4 && <ShotTimingOverlay stamina={stamina} onResult={handleTimingResult} />}
+        {uiContent}
         
         {step === 5 && simResult && resultRevealed && (
           <div className="result-actions">

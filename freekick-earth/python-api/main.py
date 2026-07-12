@@ -528,6 +528,7 @@ class Room:
         self.max_rounds: int = 5
         self.ready_count: int = 0
         self.history: List[str] = []
+        self.pending_kick: Optional[tuple] = None  # (client_id, SimulateRequest)
 
 class RoomManager:
     def __init__(self):
@@ -545,6 +546,56 @@ class RoomManager:
                 await p["ws"].send_json(message)
 
 manager = RoomManager()
+
+async def process_shot(manager, room, client_id: str, req: SimulateRequest, keeper_guess: Optional[tuple[float, float]]):
+    spin_axis = (req.spin_axis_x, req.spin_axis_y, req.spin_axis_z)
+    actual = _run_simulation(
+        power=req.power,
+        h_angle=req.horizontal_angle,
+        v_angle=req.vertical_angle,
+        spin_rate=req.spin_rate,
+        spin_axis=spin_axis,
+        air_density=room.conditions.air_density,
+        wind_speed=room.conditions.wind_speed_m_s,
+        wind_dir_deg=room.conditions.wind_direction_deg,
+        gravity=9.81,
+        ball_start_x=req.ball_start_x,
+        ball_start_z=req.ball_start_z,
+    )
+    
+    res = _classify_result(actual)
+    if res == "goal" and keeper_guess is not None:
+        crossing_pt = None
+        prev_pt = None
+        for pt in actual:
+            if prev_pt is not None and prev_pt.z < 27.0 and pt.z >= 27.0:
+                fraction = (27.0 - prev_pt.z) / (pt.z - prev_pt.z)
+                cross_x = prev_pt.x + fraction * (pt.x - prev_pt.x)
+                cross_y = prev_pt.y + fraction * (pt.y - prev_pt.y)
+                crossing_pt = (cross_x, cross_y)
+                break
+            prev_pt = pt
+            
+        if crossing_pt:
+            kx, ky = keeper_guess
+            cx, cy = crossing_pt
+            # Give the keeper a decent reach radius (e.g. 1.5 meters)
+            dist = math.hypot(kx - cx, ky - cy)
+            if dist <= 1.5:
+                res = "save"
+    
+    if res == "goal":
+        room.players[client_id]["score"] += 1
+    room.history.append(res)
+    
+    await manager.broadcast(room, {
+        "type": "shot_result",
+        "player_id": client_id,
+        "trajectory": [pt.model_dump() for pt in actual],
+        "result": res,
+        "score": room.players[client_id]["score"],
+        "history": room.history
+    })
 
 class CreateRoomResponse(BaseModel):
     room_code: str
@@ -656,34 +707,28 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, client_id: st
                         
             elif data["type"] == "take_shot":
                 req = SimulateRequest(**data["params"])
-                
-                spin_axis = (req.spin_axis_x, req.spin_axis_y, req.spin_axis_z)
-                actual = _run_simulation(
-                    power=req.power,
-                    h_angle=req.horizontal_angle,
-                    v_angle=req.vertical_angle,
-                    spin_rate=req.spin_rate,
-                    spin_axis=spin_axis,
-                    air_density=room.conditions.air_density,
-                    wind_speed=room.conditions.wind_speed_m_s,
-                    wind_dir_deg=room.conditions.wind_direction_deg,
-                    gravity=9.81,
-                    ball_start_x=req.ball_start_x,
-                    ball_start_z=req.ball_start_z,
-                )
-                res = _classify_result(actual)
-                if res == "goal":
-                    room.players[client_id]["score"] += 1
-                room.history.append(res)
+                room.pending_kick = (client_id, req)
                 
                 await manager.broadcast(room, {
-                    "type": "shot_result",
-                    "player_id": client_id,
-                    "trajectory": [pt.model_dump() for pt in actual],
-                    "result": res,
-                    "score": room.players[client_id]["score"],
-                    "history": room.history
+                    "type": "keeper_reaction_phase"
                 })
+                
+                async def wait_for_reaction(room_ref, current_req):
+                    await asyncio.sleep(2.0)
+                    if room_ref.pending_kick and room_ref.pending_kick[1] == current_req:
+                        # Timeout - process without save
+                        cid, r = room_ref.pending_kick
+                        room_ref.pending_kick = None
+                        await process_shot(manager, room_ref, cid, r, None)
+                
+                asyncio.create_task(wait_for_reaction(room, req))
+                
+            elif data["type"] == "keeper_reaction":
+                if room.pending_kick:
+                    cid, req = room.pending_kick
+                    room.pending_kick = None
+                    guess = (data.get("x"), data.get("y")) if "x" in data else None
+                    await process_shot(manager, room, cid, req, guess)
                 
             elif data["type"] == "animation_complete":
                 room.ready_count += 1
