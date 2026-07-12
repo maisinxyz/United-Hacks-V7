@@ -969,7 +969,7 @@ function DefensiveWall({ ballPosition, isShooting }: { ballPosition: [number, nu
 
   // Math for wall placement
   const distToGoal = Math.hypot(0 - ballPosition[0], 27 - ballPosition[1])
-  const wallDist = Math.min(9.144, distToGoal - 2) // 10 yards away, but at least 2m from goal line
+  const wallDist = Math.min(6, distToGoal - 2) // ~6 meters away, but at least 2m from goal line
   if (distToGoal < 10) return null // No wall if too close to goal
 
   const dirX = (0 - ballPosition[0]) / distToGoal
