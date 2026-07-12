@@ -859,7 +859,10 @@ function DefensiveWall({ ballPosition, isShooting }: { ballPosition: [number, nu
       // Small random delay before jump for realism (e.g., reaction time)
       const timer = setTimeout(() => {
         isJumping.current = true
-        jumpVelocity.current = 4.0 // jump strength
+        // Random peak height between 0.15m and 0.40m
+        // Using v = sqrt(2 * g * h) with g=6 for floaty hang time
+        const targetHeight = 0.15 + Math.random() * 0.25
+        jumpVelocity.current = Math.sqrt(2 * 6.0 * targetHeight)
         hasJumped.current = true
       }, 200 + Math.random() * 150)
       return () => clearTimeout(timer)
@@ -875,10 +878,10 @@ function DefensiveWall({ ballPosition, isShooting }: { ballPosition: [number, nu
 
   useFrame((_, delta) => {
     if (isJumping.current && groupRef.current) {
-      // Physics for jumping
+      // Physics for jumping (lower gravity = longer hang time)
       const dt = Math.min(delta, 0.05)
       jumpOffset.current += jumpVelocity.current * dt
-      jumpVelocity.current -= 15.0 * dt // gravity
+      jumpVelocity.current -= 6.0 * dt // reduced gravity for floaty feel
 
       if (jumpOffset.current <= 0) {
         jumpOffset.current = 0
