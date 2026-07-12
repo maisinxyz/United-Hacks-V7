@@ -18,8 +18,8 @@ using namespace PhysicsConstants;
 // ---------------------------------------------------------------
 
 /// Gravitational force (constant, downward along Y axis).
-static Vector3D gravity_force() {
-    return {0.0, -GRAVITY * BALL_MASS, 0.0};
+static Vector3D gravity_force(double gravity) {
+    return {0.0, -gravity * BALL_MASS, 0.0};
 }
 
 /// Aerodynamic drag force.
@@ -81,7 +81,7 @@ struct SimState {
 static Vector3D compute_acceleration(const Vector3D& vel,
                                      const Vector3D& angular_vel,
                                      const Environment& env) {
-    Vector3D f_gravity = gravity_force();
+    Vector3D f_gravity = gravity_force(env.gravity);
     Vector3D f_drag    = drag_force(vel, env.wind_velocity, env.air_density);
     Vector3D f_magnus  = magnus_force(angular_vel, vel, env.wind_velocity,
                                       env.air_density);

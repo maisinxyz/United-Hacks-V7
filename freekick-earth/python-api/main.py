@@ -179,6 +179,7 @@ def _run_simulation(
     air_density: float,
     wind_speed: float,
     wind_dir_deg: float,
+    gravity: float = 9.81,
 ) -> list[TrajectoryPoint]:
     """Call the C++ engine and return a list of trajectory points."""
     vx, vy, vz = _kick_to_velocity(power, h_angle, v_angle)
@@ -193,6 +194,7 @@ def _run_simulation(
 
     env = pe.Environment()
     env.air_density = air_density
+    env.gravity = gravity
 
     # Decompose wind direction into X/Z components
     wind_rad = math.radians(wind_dir_deg)
@@ -403,16 +405,30 @@ async def simulate(req: SimulateRequest):
     bsx = req.ball_start_x
     bsz = req.ball_start_z
 
+    # Altitude mechanic: lower gravity at high altitude
+    # Mexico City (2200m) -> 9.81 - 1.1 = 8.71 m/s^2 (significantly floatier)
+    custom_gravity = 9.81 - (stadium["altitude_meters"] / 1000.0) * 0.5
+
+    # Temperature drift mechanic (sweat on ball)
+    actual_h_angle = req.horizontal_angle
+    actual_v_angle = req.vertical_angle
+    if conditions.temperature_celsius > 25.0:
+        diff = conditions.temperature_celsius - 25.0
+        max_err = (diff / 5.0) * 2.0 # ±2 deg per 5 deg over 25°C
+        actual_h_angle += random.uniform(-max_err, max_err)
+        actual_v_angle += random.uniform(-max_err, max_err)
+
     # --- Actual trajectory (real conditions) ---
     actual = _run_simulation(
         power=req.power,
-        h_angle=req.horizontal_angle,
-        v_angle=req.vertical_angle,
+        h_angle=actual_h_angle,
+        v_angle=actual_v_angle,
         spin_rate=req.spin_rate,
         spin_axis=spin_axis,
         air_density=conditions.air_density,
         wind_speed=conditions.wind_speed_m_s,
         wind_dir_deg=conditions.wind_direction_deg,
+        gravity=custom_gravity,
     )
 
     # --- Ghost trajectory (baseline: sea-level, 15°C, no wind) ---
@@ -425,6 +441,7 @@ async def simulate(req: SimulateRequest):
         air_density=BASELINE_DENSITY,
         wind_speed=0.0,
         wind_dir_deg=0.0,
+        gravity=9.81,
     )
 
     # Offset trajectory points by ball starting position

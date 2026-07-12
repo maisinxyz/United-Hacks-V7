@@ -38,7 +38,8 @@ PYBIND11_MODULE(physics_engine, m) {
     py::class_<Environment>(m, "Environment")
         .def(py::init<>())
         .def_readwrite("air_density",    &Environment::air_density)
-        .def_readwrite("wind_velocity",  &Environment::wind_velocity);
+        .def_readwrite("wind_velocity",  &Environment::wind_velocity)
+        .def_readwrite("gravity",        &Environment::gravity);
 
     // KickParams
     py::class_<KickParams>(m, "KickParams")

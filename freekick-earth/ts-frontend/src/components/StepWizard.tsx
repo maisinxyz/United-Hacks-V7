@@ -11,6 +11,9 @@ import HorizontalAngleOverlay from './HorizontalAngleOverlay'
 import VerticalAngleOverlay from './VerticalAngleOverlay'
 import CurveOverlay from './CurveOverlay'
 import StadiumBadge from './StadiumBadge'
+import Scoreboard from './Scoreboard'
+import GameOverScreen from './GameOverScreen'
+import SnowOverlay from './SnowOverlay'
 import PitchScene, { type CameraConfig } from './PitchScene'
 import axios from 'axios'
 import { fetchGameInit, runSimulation, type SimulateResult, type StadiumConditions, type TrajectoryPoint } from '../api'
@@ -263,6 +266,11 @@ export default function StepWizard() {
           score={score}
           maxAttempts={MAX_ATTEMPTS}
         />
+      )}
+
+      {/* Snow Overlay for negative temperatures */}
+      {config.conditions && config.conditions.temperature_celsius < 0 && (
+        <SnowOverlay />
       )}
 
       {/* Stadium Badge — visible during kick prep steps */}

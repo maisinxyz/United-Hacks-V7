@@ -57,6 +57,7 @@ struct BallState {
 struct Environment {
     double air_density;        // kg/m³  (sea-level ≈ 1.225)
     Vector3D wind_velocity;    // m/s
+    double gravity = 9.81;     // m/s²   (defaults to sea-level gravity)
 };
 
 struct KickParams {
