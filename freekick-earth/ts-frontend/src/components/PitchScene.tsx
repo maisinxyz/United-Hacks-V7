@@ -704,17 +704,29 @@ function extendTrajectoryWithPhysics(trajectory: TrajectoryPoint[]): TrajectoryP
   for (let i = 0; i < Math.ceil(maxExtraTime / step); i++) {
     time += step
 
-    const inNet = z >= 27.0 && z <= 29.5 && x >= -3.55 && x <= 3.55 && y <= 2.40
-    if (inNet) {
-      // Net catching the ball
-      vx *= 0.3
+    const netFrontZ = 27.0
+    const netBackZ = 29.5
+    const netHalfWidth = 3.55
+    const netHeight = 2.40
+    const inNetZone = x >= -netHalfWidth && x <= netHalfWidth && y <= netHeight
+    const aboutToEnterNet = z >= netFrontZ && inNetZone
+
+    if (aboutToEnterNet) {
+      // Net catching the ball. Clamp it to the back net plane and slow it down.
+      vx *= 0.2
       vy *= 0.3
-      vz *= 0.3
+      vz *= 0.2
       vy -= gravity * step
 
       x += vx * step
       y += vy * step
       z += vz * step
+
+      if (z > netBackZ) {
+        z = netBackZ
+        vz = 0
+        vx *= 0.4
+      }
 
       if (y <= groundY) {
         y = groundY
