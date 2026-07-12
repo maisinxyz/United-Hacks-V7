@@ -11,7 +11,7 @@ import ShotTimingOverlay, { type TimingResult } from './ShotTimingOverlay'
 import StadiumBadge from './StadiumBadge'
 import SnowOverlay from './SnowOverlay'
 import FlyoverScreen from './FlyoverScreen'
-import { WS_BASE_URL, API_BASE_URL, type Stadium, type StadiumConditions } from '../api'
+import { WS_BASE_URL, API_BASE_URL, type StadiumConditions } from '../api'
 import PitchScene, { type CameraConfig } from './PitchScene'
 import GoalKeeperScreen from './GoalKeeperScreen'
 import axios from 'axios'
@@ -78,7 +78,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
 
   // Multiplayer State
   const [ws, setWs] = useState<WebSocket | null>(null)
-  const [myId, setMyId] = useState(() => {
+  const [myId] = useState(() => {
     let id = sessionStorage.getItem('clientId')
     if (!id) {
       id = Math.random().toString(36).substring(2, 9)
@@ -357,17 +357,17 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
         <div className="entrance-content">
           <h2 className="game-title" style={{ fontSize: '3rem' }}>Select Role</h2>
           <div style={{ display: 'flex', gap: '2rem', marginTop: '3rem' }}>
-            <button 
-              className="wizard-btn primary huge" 
-              disabled={isKickerTaken}
+            <button
+              className="wizard-btn"
+              disabled={Boolean(isKickerTaken)}
               onClick={() => selectRole('kicker')}
-              style={{ opacity: isKickerTaken ? 0.5 : 1, boxShadow: 'none' }}
+              style={{ opacity: isKickerTaken ? 0.5 : 1, boxShadow: 'none', background: '#3b82f6', color: 'white', border: 'none' }}
             >
-              Penalty Taker
+              Kicker
             </button>
-            <button 
-              className="wizard-btn huge" 
-              disabled={isKeeperTaken}
+            <button
+              className="wizard-btn"
+              disabled={Boolean(isKeeperTaken)}
               onClick={() => selectRole('goalkeeper')}
               style={{ opacity: isKeeperTaken ? 0.5 : 1, boxShadow: 'none', background: '#3b82f6', color: 'white', border: 'none' }}
             >
@@ -384,7 +384,6 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
     <div className="wizard-container">
       <div className="scene-background">
         <PitchScene
-          stadium={stadium || undefined}
           camera={cameraConfig}
           trajectory={simResult?.trajectory}
           previewTrajectory={previewTrajectory}
@@ -397,9 +396,6 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
           instantCamera={step === -2 || step === -1 || step === 5}
           onTrajectoryComplete={() => setResultRevealed(true)}
           ballPosition={currentBallPos}
-          showTrajectory={step === 5 || step === 6}
-          showBall={step >= 0}
-          isPlaying={step >= 5}
         />
       </div>
 
