@@ -13,6 +13,7 @@ import CurveOverlay from './CurveOverlay'
 import ShotTimingOverlay, { type TimingResult } from './ShotTimingOverlay'
 import StadiumBadge from './StadiumBadge'
 import SnowOverlay from './SnowOverlay'
+import FlyoverScreen from './FlyoverScreen'
 import PitchScene, { type CameraConfig } from './PitchScene'
 import axios from 'axios'
 import { fetchGameInit, runSimulation, type SimulateResult, type StadiumConditions, type TrajectoryPoint } from '../api'
@@ -64,6 +65,7 @@ function getCameraConfig(step: number, bp: [number, number]): CameraConfig {
   const [bx, bz] = bp
   const configs: Record<number, CameraConfig> = {
     [-2]: { position: [0, 30, -50], target: [0, 5, 0] },
+    [-1]: { position: [0, 50, 0], target: [0, 0, 15] }, // Birds eye view
     0: { position: [bx - 3, 0.8, bz - 2], target: [bx + 0.5, 0.11, bz + 1.5] },
     1: { position: [bx, 12, bz - 8], target: [bx, 0, (bz + 27) / 2] },
     2: { position: [bx - 15, 3, (bz + 27) / 2], target: [bx, 1, (bz + 27) / 2] },
@@ -110,7 +112,7 @@ export default function StepWizard() {
         stadiumId: init.stadium.id,
         conditions: init.conditions,
       }))
-      setStep(0)
+      setStep(-1) // Go to Flyover screen first
     } catch (e) {
       console.error(e)
     } finally {
@@ -266,16 +268,25 @@ export default function StepWizard() {
           ghostTrajectory={previewTrajectory || undefined}
           result={step === 5 && resultRevealed ? simResult?.result : undefined}
           resultVisible={step === 5 && resultRevealed}
-          dimmed={false}
+          dimmed={step >= 0 && step <= 4}
           stepIndex={step}
           config={config}
-          instantCamera={step === -2 || step === 0}
+          instantCamera={step === -2 || step === -1 || step === 5}
           onTrajectoryComplete={() => setResultRevealed(true)}
           ballPosition={currentBallPos}
         />
       </div>
 
       {step === -2 && <EntranceScreen onPlay={handlePlay} />}
+
+      {step === -1 && config.conditions && (
+        <FlyoverScreen
+          stadiumName={config.conditions.stadium.name}
+          location={`${config.conditions.stadium.city}, ${config.conditions.stadium.country}`}
+          conditions={config.conditions}
+          onComplete={() => setStep(0)}
+        />
+      )}
 
       {/* Scoreboard — visible during gameplay (steps 0–5) */}
       {step >= 0 && (
