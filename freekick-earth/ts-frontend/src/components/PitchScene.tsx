@@ -67,7 +67,7 @@ export default function PitchScene({
           position={camera.position} 
           instant={instantCamera} 
           triggerRecenter={triggerRecenter}
-          trackBall={stepIndex === 4}
+          trackBall={stepIndex === 5}
           ballRef={ballRef}
         />
 
@@ -88,7 +88,10 @@ export default function PitchScene({
         <ArenaEnvironment stadiumId={config.stadiumId} />
         {stepIndex < 0 && <BCPlace />}
         {config.conditions && (
-          <WindParticles speed={config.conditions.wind_speed_m_s} direction={config.conditions.wind_direction_deg} />
+          <>
+            <WindParticles speed={config.conditions.wind_speed_m_s} direction={config.conditions.wind_direction_deg} />
+            <CornerFlag speed={config.conditions.wind_speed_m_s} direction={config.conditions.wind_direction_deg} />
+          </>
         )}
         <GoalPosts ballRef={ballRef} />
         <GoalPosts ballRef={ballRef} isNorth />
@@ -123,7 +126,7 @@ export default function PitchScene({
         )}
 
         {/* Trajectory animation when available */}
-        {stepIndex === 4 && trajectory && trajectory.length > 0 && (
+        {stepIndex === 5 && trajectory && trajectory.length > 0 && (
           <>
             <TrajectoryAnimation
               trajectory={trajectory}
@@ -940,6 +943,49 @@ export function Goalkeeper({ trajectory }: { trajectory: TrajectoryPoint[] }) {
           <meshStandardMaterial color="#dd6b20" />
         </mesh>
       </group>
+    </group>
+  )
+}
+
+export function CornerFlag({ speed, direction }: { speed: number; direction: number }) {
+  const groupRef = useRef<THREE.Group>(null!)
+  
+  // Wind direction in radians
+  const dirRad = THREE.MathUtils.degToRad(direction)
+  
+  useFrame((state) => {
+    if (groupRef.current) {
+      // Basic flapping animation based on speed
+      const time = state.clock.getElapsedTime()
+      // Flap amplitude based on wind speed
+      const flap = speed > 0 ? Math.sin(time * speed * 2) * (0.1 + speed * 0.02) : 0
+      // Align flag to wind direction + flap
+      // (Assuming 0 deg = North/-Z. We adjust by Math.PI/2 to align plane's normal)
+      groupRef.current.rotation.y = dirRad + flap + Math.PI / 2
+    }
+  })
+
+  return (
+    <group position={[20, 0, 27]}>
+      {/* Pole */}
+      <mesh position={[0, 0.75, 0]}>
+        <cylinderGeometry args={[0.05, 0.05, 1.5]} />
+        <meshStandardMaterial color="#ffffff" />
+      </mesh>
+      
+      {/* Animated Flag Group (rotates around the pole) */}
+      <group ref={groupRef} position={[0, 1.25, 0]}>
+        {/* Offset flag mesh so it hinges at the pole */}
+        <mesh position={[0.4, 0, 0]}>
+          <planeGeometry args={[0.8, 0.5]} />
+          <meshStandardMaterial color="#ef4444" side={THREE.DoubleSide} />
+        </mesh>
+      </group>
+      
+      {/* Speed Label */}
+      <Text position={[0, 1.9, 0]} fontSize={0.6} color="#ffffff" anchorX="center" anchorY="bottom" outlineWidth={0.02} outlineColor="#000000">
+        {Math.round(speed)} m/s
+      </Text>
     </group>
   )
 }
