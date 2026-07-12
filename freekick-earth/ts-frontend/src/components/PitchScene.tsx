@@ -189,7 +189,7 @@ export default function PitchScene({
           <>
             {previewTrajectory && previewTrajectory.length > 0 && (
               <Line
-                points={previewTrajectory.map((p) => new THREE.Vector3(p.x, p.y, p.z))}
+                points={previewTrajectory.slice(0, Math.min(4, previewTrajectory.length)).map((p) => new THREE.Vector3(p.x, p.y, p.z))}
                 color="#f59e0b" // Glowing amber
                 lineWidth={3}
                 dashed
@@ -371,9 +371,9 @@ function AimPreview({ config, ballPosition = [0, 0] }: { config: KickConfig; bal
     const radH = (-config.horizontalAngle * Math.PI) / 180 // -x is left
     const radV = (config.verticalAngle * Math.PI) / 180
     // Draw a simple parabolic or straight arc preview
-    for (let i = 0; i <= 20; i++) {
-      const t = i / 20
-      const distance = t * 15 // project out 15 meters
+    for (let i = 0; i <= 6; i++) {
+      const t = i / 6
+      const distance = t * 2.5 // project out only 2.5 meters (2-3 dashes)
       const x = ballPosition[0] + distance * Math.sin(radH)
       const z = ballPosition[1] + distance * Math.cos(radH)
       const y = 0.11 + distance * Math.tan(radV) - (0.5 * 9.8 * Math.pow(distance / 20, 2))
