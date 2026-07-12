@@ -99,6 +99,9 @@ export default function PitchScene({
         {/* Birds */}
         <Birds />
 
+        {/* Defensive Wall */}
+        <DefensiveWall ballPosition={ballPosition} isShooting={(trajectory && trajectory.length > 0) || false} />
+
         <Pitch />
         <ArenaEnvironment stadiumId={config.stadiumId} hideRoof={stepIndex < 0} />
         {stepIndex < 0 && <BCPlace />}
@@ -839,6 +842,191 @@ function Birds() {
           <meshBasicMaterial color="#ffffff" fog={true} />
         </mesh>
       ))}
+    </group>
+  )
+}
+
+// ---------------------------------------------------------------
+// Defensive Wall
+// ---------------------------------------------------------------
+function DefensiveWall({ ballPosition, isShooting }: { ballPosition: [number, number]; isShooting: boolean }) {
+  const groupRef = useRef<THREE.Group>(null!)
+  const jumpOffset = useRef(0)
+  const jumpVelocity = useRef(0)
+  const isJumping = useRef(false)
+  const hasJumped = useRef(false)
+
+  // Only jump once per shot
+  useEffect(() => {
+    if (isShooting && !hasJumped.current) {
+      // Small random delay before jump for realism (e.g., reaction time)
+      const timer = setTimeout(() => {
+        isJumping.current = true
+        jumpVelocity.current = 4.0 // jump strength
+        hasJumped.current = true
+      }, 200 + Math.random() * 150)
+      return () => clearTimeout(timer)
+    } else if (!isShooting) {
+      // Reset when not shooting
+      hasJumped.current = false
+      isJumping.current = false
+      jumpOffset.current = 0
+      jumpVelocity.current = 0
+      if (groupRef.current) groupRef.current.position.y = 0
+    }
+  }, [isShooting])
+
+  useFrame((_, delta) => {
+    if (isJumping.current && groupRef.current) {
+      // Physics for jumping
+      const dt = Math.min(delta, 0.05)
+      jumpOffset.current += jumpVelocity.current * dt
+      jumpVelocity.current -= 15.0 * dt // gravity
+
+      if (jumpOffset.current <= 0) {
+        jumpOffset.current = 0
+        isJumping.current = false
+        jumpVelocity.current = 0
+      }
+      groupRef.current.position.y = jumpOffset.current
+    }
+  })
+
+  // Math for wall placement
+  const distToGoal = Math.hypot(0 - ballPosition[0], 27 - ballPosition[1])
+  const wallDist = Math.min(9.144, distToGoal - 2) // 10 yards away, but at least 2m from goal line
+  if (distToGoal < 10) return null // No wall if too close to goal
+
+  const dirX = (0 - ballPosition[0]) / distToGoal
+  const dirZ = (27 - ballPosition[1]) / distToGoal
+
+  // Base position of the wall
+  const wallX = ballPosition[0] + dirX * wallDist
+  const wallZ = ballPosition[1] + dirZ * wallDist
+
+  const spacing = 0.65
+  const offsets = [-1.5 * spacing, -0.5 * spacing, 0.5 * spacing, 1.5 * spacing]
+
+  // Calculate rotation to face the ball
+  const rotationY = Math.atan2(dirX, dirZ) + Math.PI
+
+  return (
+    <group position={[wallX, 0, wallZ]} rotation={[0, rotationY, 0]}>
+      <group ref={groupRef}>
+        {offsets.map((offset, i) => (
+          <WallPlayer key={i} offsetX={offset} />
+        ))}
+      </group>
+    </group>
+  )
+}
+
+function WallPlayer({ offsetX }: { offsetX: number }) {
+  // A simple blocky player (low-poly person)
+  const skinColor = "#fcd34d" // generic light skin
+  const shirtColor = "#1e3a8a" // dark blue
+  const shortsColor = "#ffffff" // white
+  const socksColor = "#1e3a8a" // dark blue
+  const shoesColor = "#111111" // black
+  const hairColor = "#3f2b18" // dark brown
+
+  return (
+    <group position={[offsetX, 0, 0]}>
+      {/* Head */}
+      <mesh position={[0, 1.7, 0]} castShadow>
+        <sphereGeometry args={[0.12, 16, 16]} />
+        <meshStandardMaterial color={skinColor} roughness={0.6} />
+      </mesh>
+      
+      {/* Hair */}
+      <mesh position={[0, 1.73, -0.02]} castShadow>
+        <sphereGeometry args={[0.125, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <meshStandardMaterial color={hairColor} roughness={0.9} />
+      </mesh>
+
+      {/* Torso */}
+      <mesh position={[0, 1.25, 0]} castShadow>
+        <boxGeometry args={[0.35, 0.55, 0.18]} />
+        <meshStandardMaterial color={shirtColor} roughness={0.8} />
+      </mesh>
+
+      {/* Left Arm (covering crotch) */}
+      <group position={[-0.2, 1.45, 0]} rotation={[0.4, 0.2, -0.5]}>
+        <mesh position={[0, -0.2, 0]} castShadow>
+          <cylinderGeometry args={[0.05, 0.045, 0.45, 8]} />
+          <meshStandardMaterial color={skinColor} />
+        </mesh>
+        <mesh position={[0, -0.05, 0]} castShadow>
+          <cylinderGeometry args={[0.055, 0.05, 0.15, 8]} />
+          <meshStandardMaterial color={shirtColor} />
+        </mesh>
+      </group>
+
+      {/* Right Arm (covering crotch) */}
+      <group position={[0.2, 1.45, 0]} rotation={[0.4, -0.2, 0.5]}>
+        <mesh position={[0, -0.2, 0]} castShadow>
+          <cylinderGeometry args={[0.05, 0.045, 0.45, 8]} />
+          <meshStandardMaterial color={skinColor} />
+        </mesh>
+        <mesh position={[0, -0.05, 0]} castShadow>
+          <cylinderGeometry args={[0.055, 0.05, 0.15, 8]} />
+          <meshStandardMaterial color={shirtColor} />
+        </mesh>
+      </group>
+
+      {/* Pelvis/Shorts */}
+      <mesh position={[0, 0.9, 0]} castShadow>
+        <boxGeometry args={[0.35, 0.15, 0.2]} />
+        <meshStandardMaterial color={shortsColor} roughness={0.8} />
+      </mesh>
+
+      {/* Left Leg */}
+      <group position={[-0.1, 0.9, 0]}>
+        {/* Upper leg (shorts) */}
+        <mesh position={[0, -0.2, 0]} castShadow>
+          <cylinderGeometry args={[0.08, 0.07, 0.4, 8]} />
+          <meshStandardMaterial color={shortsColor} />
+        </mesh>
+        {/* Knee (skin) */}
+        <mesh position={[0, -0.45, 0]} castShadow>
+          <cylinderGeometry args={[0.065, 0.065, 0.1, 8]} />
+          <meshStandardMaterial color={skinColor} />
+        </mesh>
+        {/* Lower leg (socks) */}
+        <mesh position={[0, -0.65, 0]} castShadow>
+          <cylinderGeometry args={[0.065, 0.06, 0.3, 8]} />
+          <meshStandardMaterial color={socksColor} />
+        </mesh>
+        {/* Shoe */}
+        <mesh position={[0, -0.85, 0.05]} castShadow>
+          <boxGeometry args={[0.1, 0.1, 0.2]} />
+          <meshStandardMaterial color={shoesColor} />
+        </mesh>
+      </group>
+
+      {/* Right Leg */}
+      <group position={[0.1, 0.9, 0]}>
+        {/* Upper leg (shorts) */}
+        <mesh position={[0, -0.2, 0]} castShadow>
+          <cylinderGeometry args={[0.08, 0.07, 0.4, 8]} />
+          <meshStandardMaterial color={shortsColor} />
+        </mesh>
+        {/* Knee (skin) */}
+        <mesh position={[0, -0.45, 0]} castShadow>
+          <cylinderGeometry args={[0.065, 0.065, 0.1, 8]} />
+          <meshStandardMaterial color={skinColor} />
+        </mesh>
+        {/* Lower leg (socks) */}
+        <mesh position={[0, -0.65, 0]} castShadow>
+          <cylinderGeometry args={[0.065, 0.06, 0.3, 8]} />
+          <meshStandardMaterial color={socksColor} />
+        </mesh>
+        {/* Shoe */}
+        <mesh position={[0, -0.85, 0.05]} castShadow>
+          <boxGeometry args={[0.1, 0.1, 0.2]} />
+          <meshStandardMaterial color={shoesColor} />
+        </mesh>
+      </group>
     </group>
   )
 }
