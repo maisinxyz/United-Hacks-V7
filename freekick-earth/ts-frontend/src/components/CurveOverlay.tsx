@@ -11,7 +11,7 @@ interface Props {
 }
 
 export default function CurveOverlay({ config, onUpdate, onKick, onBack, loading, ballPosition }: Props) {
-  const MAX_SPIN = 60
+  const MAX_SPIN = 150
 
   const [x, setX] = useState(() => Math.round(config.spinAxisX * (config.spinRate / MAX_SPIN) * 100) || 0)
   const [y, setY] = useState(() => Math.round(-config.spinAxisY * (config.spinRate / MAX_SPIN) * 100) || 0)
