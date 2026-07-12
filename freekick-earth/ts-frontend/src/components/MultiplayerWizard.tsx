@@ -161,7 +161,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
             keeperTargetTimerRef.current = window.setTimeout(() => {
               setTargetCoords(null)
               keeperTargetTimerRef.current = null
-            }, 800)
+            }, 400)
             setStep(4.5)
             break
             
