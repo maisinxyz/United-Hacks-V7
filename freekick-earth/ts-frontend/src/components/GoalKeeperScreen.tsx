@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 interface Props {
   stadiumName?: string
   step: number
-  outcome?: 'miss' | 'goal' | null
+  outcome?: 'miss' | 'goal' | 'save' | null
   onReact?: (x: number, y: number) => void
 }
 
@@ -46,6 +46,34 @@ export default function GoalKeeperScreen({ stadiumName, step, outcome }: Props) 
     )
   }
 
+  if (step >= 4.6 && outcome === 'save') {
+    return (
+      <div style={{
+        position: 'absolute',
+        top: '24px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 100,
+        pointerEvents: 'none',
+        textAlign: 'center',
+        padding: '0.85rem 1.25rem',
+        borderRadius: '999px',
+        background: 'rgba(21, 128, 61, 0.75)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(74,222,128,0.4)',
+        color: 'white',
+        textShadow: '0 2px 8px rgba(0,0,0,0.8)'
+      }}>
+        <div style={{ fontSize: '0.85rem', letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800 }}>
+          🧤 SAVED!
+        </div>
+        <div style={{ fontSize: '1rem', fontWeight: 700 }}>
+          +1 point to Goalkeeper!
+        </div>
+      </div>
+    )
+  }
+
   if (step >= 4.6 && outcome === 'miss') {
     return (
       <div style={{
@@ -68,7 +96,7 @@ export default function GoalKeeperScreen({ stadiumName, step, outcome }: Props) 
           MISSED
         </div>
         <div style={{ fontSize: '1rem', fontWeight: 700 }}>
-          Keeper gets the point.
+          +1 point to Goalkeeper!
         </div>
       </div>
     )

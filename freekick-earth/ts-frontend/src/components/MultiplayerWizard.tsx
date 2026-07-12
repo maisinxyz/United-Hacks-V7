@@ -101,7 +101,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
   const [history, setHistory] = useState<string[]>([])
   const [gameOver, setGameOver] = useState(false)
   const [targetCoords, setTargetCoords] = useState<[number, number] | null>(null)
-  const [keeperFeedback, setKeeperFeedback] = useState<'miss' | 'goal' | null>(null)
+  const [keeperFeedback, setKeeperFeedback] = useState<'miss' | 'goal' | 'save' | null>(null)
   const keeperTargetTimerRef = useRef<number | null>(null)
 
   const isMyTurn = currentTurn === myId
@@ -214,6 +214,11 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
           case 'shot_result':
             if (data.result === 'goal') {
               setKeeperFeedback('goal')
+            } else if (data.result === 'save') {
+              setKeeperFeedback('save')
+              if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                navigator.vibrate?.([35, 40, 35])
+              }
             } else {
               setKeeperFeedback('miss')
               if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
@@ -518,7 +523,12 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
         {step === 5 && simResult && resultRevealed && (
           <div className="result-actions">
             <div className="result-banner">
-              {simResult.result === 'goal' ? <h2 className="result-goal" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(74, 222, 128, 0.5)' }}>⚽ GOAL!</h2> : <h2 className="result-miss" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(248, 113, 113, 0.5)' }}>❌ MISSED</h2>}
+              {simResult.result === 'goal'
+                ? <h2 className="result-goal" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(74, 222, 128, 0.5)' }}>⚽ GOAL!</h2>
+                : simResult.result === 'save'
+                  ? <h2 className="result-miss" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(248, 113, 113, 0.5)' }}>🧤 SAVED!</h2>
+                  : <h2 className="result-miss" style={{ fontSize: '6rem', fontWeight: 900, textShadow: '0 0 20px rgba(248, 113, 113, 0.5)' }}>❌ MISSED</h2>
+              }
             </div>
             <button className="wizard-btn try-again-btn" onClick={handleNextKick}>
               {round < MAX_ATTEMPTS - 1 ? 'Continue →' : 'See Final Score'}
