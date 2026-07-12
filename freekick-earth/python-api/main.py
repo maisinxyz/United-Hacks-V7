@@ -592,7 +592,6 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, client_id: st
             })
         else:
             # Just send state
-            state_msg = {
             msg = {
                 "type": "room_state",
                 "players": {pid: {"name": p["name"], "score": p["score"], "connected": p["connected"]} for pid, p in room.players.items()},
