@@ -16,7 +16,7 @@ export default function EntranceScreen({ onPlaySingle, onPlayMulti }: Props) {
   return (
     <div className="entrance-screen">
       <div className="entrance-content">
-        <h1 className="game-title">[TITLE]</h1>
+        <h1 className="game-title">Free Kick World</h1>
         
         <div className="entrance-actions" style={{ marginTop: '2rem' }}>
           {mode === 'menu' && (
@@ -27,10 +27,6 @@ export default function EntranceScreen({ onPlaySingle, onPlayMulti }: Props) {
               <button className="wizard-btn huge" onClick={() => setMode('multi')} style={{ boxShadow: 'none', background: '#64748b', color: 'white', border: 'none' }}>
                 MULTIPLAYER
               </button>
-              <div className="future-buttons">
-                <button className="wizard-btn outline small" disabled>Tutorial (Coming Soon)</button>
-                <button className="wizard-btn outline small" disabled>Settings (Coming Soon)</button>
-              </div>
             </>
           )}
 
