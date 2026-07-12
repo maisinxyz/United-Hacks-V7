@@ -227,6 +227,24 @@ export default function PitchScene({
             {/* {keeperTrajectory && <Goalkeeper trajectory={keeperTrajectory} />} */}
           </>
         )}
+
+        {/* 3D Result Text */}
+        {resultVisible && result && (
+          <Billboard position={[0, 4, 27]}>
+            <Text
+              fontSize={3}
+              color={result === 'goal' ? '#ef4444' : '#22c55e'}
+              anchorX="center"
+              anchorY="middle"
+              font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfMZhrib2Bg-4.ttf"
+              characters="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"
+              outlineWidth={0.1}
+              outlineColor="#ffffff"
+            >
+              {result === 'goal' ? 'GOAL!' : 'SAVED!'}
+            </Text>
+          </Billboard>
+        )}
       </Canvas>
 
       {dimmed && <div className="scene-dim" />}
@@ -255,23 +273,6 @@ export default function PitchScene({
         </button>
       </div>
 
-      {/* 3D Result Text */}
-      {resultVisible && result && (
-        <Billboard position={[0, 4, 27]}>
-          <Text
-            fontSize={3}
-            color={result === 'goal' ? '#ef4444' : '#22c55e'}
-            anchorX="center"
-            anchorY="middle"
-            font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfMZhrib2Bg-4.ttf"
-            characters="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!"
-            outlineWidth={0.1}
-            outlineColor="#ffffff"
-          >
-            {result === 'goal' ? 'GOAL!' : 'SAVED!'}
-          </Text>
-        </Billboard>
-      )}
       
       {resultVisible && result && (
         <div
