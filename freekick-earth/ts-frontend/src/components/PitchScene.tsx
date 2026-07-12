@@ -52,6 +52,32 @@ export default function PitchScene({
   const ballRef = useRef<THREE.Mesh>(null!)
   const [triggerRecenter, setTriggerRecenter] = useState(0)
 
+  // Ambient crowd noise
+  useEffect(() => {
+    const crowdAudio = new Audio('/crowd.mp3')
+    crowdAudio.loop = true
+    crowdAudio.volume = 0.15 // Moderate volume: not too loud, not too quiet
+
+    const playPromise = crowdAudio.play()
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        // Browsers often block autoplay until user interacts with the page
+        const handleInteraction = () => {
+          crowdAudio.play().catch(e => console.log('Audio play failed:', e))
+          window.removeEventListener('click', handleInteraction)
+          window.removeEventListener('keydown', handleInteraction)
+        }
+        window.addEventListener('click', handleInteraction)
+        window.addEventListener('keydown', handleInteraction)
+      })
+    }
+
+    return () => {
+      crowdAudio.pause()
+      crowdAudio.src = ''
+    }
+  }, [])
+
   return (
     <div className="pitch-scene-wrapper">
       <Canvas

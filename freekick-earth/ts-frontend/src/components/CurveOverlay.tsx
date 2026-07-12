@@ -18,7 +18,7 @@ export default function CurveOverlay({ config, onUpdate, onKick, onBack, loading
   const [z, setZ] = useState(() => Math.round(config.spinAxisZ * (config.spinRate / MAX_SPIN) * 100) || 0)
 
   const lastUpdate = useRef(0)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleSliderChange = (axis: 'X' | 'Y' | 'Z', value: number) => {
     let newX = axis === 'X' ? value : x
