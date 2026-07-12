@@ -41,7 +41,8 @@ const STEP_COUNT = 7
 
 function getCameraConfig(step: number, bp: [number, number], role?: string | null): CameraConfig {
   if (role === 'goalkeeper' && step >= 0 && step <= 5) {
-    return { position: [0, 2, 18], target: [0, 1, 0] }
+    const [bx, bz] = bp
+    return { position: [0, 1.8, 28], target: [bx, 0.5, bz] }
   }
   const [bx, bz] = bp
   const configs: Record<number, CameraConfig> = {
@@ -76,7 +77,14 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
 
   // Multiplayer State
   const [ws, setWs] = useState<WebSocket | null>(null)
-  const [myId, setMyId] = useState('')
+  const [myId, setMyId] = useState(() => {
+    let id = sessionStorage.getItem('clientId')
+    if (!id) {
+      id = Math.random().toString(36).substring(2, 9)
+      sessionStorage.setItem('clientId', id)
+    }
+    return id
+  })
   const [myRole, setMyRole] = useState<string | null>(null)
   const [roles, setRoles] = useState<Record<string, string>>({})
   const [activeRoomCode, setActiveRoomCode] = useState('')
@@ -86,33 +94,36 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
   const [conditions, setConditions] = useState<StadiumConditions | null>(null)
   const [ballPositions, setBallPositions] = useState<[number, number][]>([[0,0]])
   const [round, setRound] = useState(0)
+  const [history, setHistory] = useState<string[]>([])
   const [gameOver, setGameOver] = useState(false)
 
   const isMyTurn = currentTurn === myId
   const currentBallPos = ballPositions[round] || [0, 0]
 
   useEffect(() => {
-    // Generate a simple random client ID
-    const clientId = Math.random().toString(36).substring(2, 9)
-    setMyId(clientId)
-
+    let active = true
+    let socket: WebSocket | null = null
+    
     const init = async () => {
       let code = roomCode
       if (mode === 'create') {
         try {
           const res = await axios.post('/api/multiplayer/create')
+          if (!active) return
           code = res.data.room_code
         } catch (e) {
+          if (!active) return
           setErrorMsg('Failed to create room')
           return
         }
       }
+      if (!active) return
       setActiveRoomCode(code || '')
 
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-      const wsUrl = `${proto}://${window.location.host}/api/multiplayer/ws/${code}/${clientId}`
+      const wsUrl = `${proto}://${window.location.host}/api/multiplayer/ws/${code}/${myId}`
       
-      const socket = new WebSocket(wsUrl)
+      socket = new WebSocket(wsUrl)
       
       socket.onopen = () => {
         console.log("Connected to room", code)
@@ -120,30 +131,36 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
 
       socket.onerror = (e) => {
         console.error("WebSocket Error: ", e)
-        setErrorMsg("Connection to server failed.")
+        if (active) setErrorMsg("Connection to server failed.")
       }
       
       socket.onmessage = (event) => {
+        if (!active) return
         const data = JSON.parse(event.data)
         
         switch (data.type) {
           case 'error':
             setErrorMsg(data.message)
-            socket.close()
+            socket?.close()
             break
             
           case 'room_state':
             setPlayers(data.players)
             if (data.roles) setRoles(data.roles)
+            if (data.history) setHistory(data.history)
             break
             
           case 'role_selection':
-            if (data.roles) setRoles(data.roles)
-            setStep(-2.5) // Role Selection UI
+            setRoles(data.roles)
+            if (data.roles['kicker'] === myId) setMyRole('kicker')
+            else if (data.roles['goalkeeper'] === myId) setMyRole('goalkeeper')
+            setStep(-2.5) // Role selection step
             break
             
           case 'role_update':
-            if (data.roles) setRoles(data.roles)
+            setRoles(data.roles)
+            if (data.roles['kicker'] === myId) setMyRole('kicker')
+            else if (data.roles['goalkeeper'] === myId) setMyRole('goalkeeper')
             break
             
           case 'game_start':
@@ -152,6 +169,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
             setBallPositions(data.ball_positions)
             setCurrentTurn(data.turn)
             setPlayers(data.players)
+            if (data.history) setHistory(data.history)
             if (data.roles) {
               setRoles(data.roles)
               for (const [r, cid] of Object.entries(data.roles)) {
@@ -164,6 +182,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
           case 'turn_start':
             setCurrentTurn(data.turn)
             setRound(data.round)
+            if (data.history) setHistory(data.history)
             setConfig(INITIAL_CONFIG)
             setSimResult(null)
             setPreviewTrajectory(null)
@@ -184,6 +203,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
               ...prev,
               [data.player_id]: { ...prev[data.player_id], score: data.score }
             }))
+            if (data.history) setHistory(data.history)
             setStep(5)
             break
             
@@ -212,7 +232,8 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
     init()
     
     return () => {
-      if (ws) ws.close()
+      active = false
+      if (socket) socket.close()
     }
   }, [mode, roomCode])
 
@@ -303,7 +324,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
       <div className="entrance-screen">
         <div className="entrance-content">
           <h2 style={{color: 'red'}}>{errorMsg}</h2>
-          <button className="wizard-btn secondary" onClick={onExit} style={{marginTop: '2rem'}}>Back</button>
+          <button className="wizard-btn" onClick={onExit} style={{ marginTop: '2rem', background: '#64748b', color: 'white', border: 'none', boxShadow: 'none' }}>Back</button>
         </div>
       </div>
     )
@@ -340,15 +361,15 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
               className="wizard-btn primary huge" 
               disabled={isKickerTaken}
               onClick={() => selectRole('kicker')}
-              style={{ opacity: isKickerTaken ? 0.5 : 1 }}
+              style={{ opacity: isKickerTaken ? 0.5 : 1, boxShadow: 'none' }}
             >
               Penalty Taker
             </button>
             <button 
-              className="wizard-btn secondary huge" 
+              className="wizard-btn huge" 
               disabled={isKeeperTaken}
               onClick={() => selectRole('goalkeeper')}
-              style={{ opacity: isKeeperTaken ? 0.5 : 1 }}
+              style={{ opacity: isKeeperTaken ? 0.5 : 1, boxShadow: 'none', background: '#3b82f6', color: 'white', border: 'none' }}
             >
               Goalkeeper
             </button>
@@ -363,6 +384,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
     <div className="wizard-container">
       <div className="scene-background">
         <PitchScene
+          stadium={stadium || undefined}
           camera={cameraConfig}
           trajectory={simResult?.trajectory}
           previewTrajectory={previewTrajectory}
@@ -375,6 +397,9 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
           instantCamera={step === -2 || step === -1 || step === 5}
           onTrajectoryComplete={() => setResultRevealed(true)}
           ballPosition={currentBallPos}
+          showTrajectory={step === 5 || step === 6}
+          showBall={step >= 0}
+          isPlaying={step >= 5}
         />
       </div>
 
@@ -389,8 +414,22 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
 
       {step >= 0 && (
         <div className="scoreboard">
-          <div className="scoreboard-points">
-            <span className="scoreboard-label">Round {round + 1} / {MAX_ATTEMPTS}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <span className="scoreboard-label" style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>Round {round + 1} / {MAX_ATTEMPTS}</span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {Array.from({ length: MAX_ATTEMPTS }).map((_, i) => {
+                const res = history[i]
+                let bgColor = 'rgba(255,255,255,0.2)'
+                if (res === 'goal') bgColor = '#22c55e'
+                else if (res === 'miss') bgColor = '#ef4444'
+                return (
+                  <div key={i} style={{
+                    width: '16px', height: '16px', borderRadius: '50%',
+                    background: bgColor, border: '2px solid rgba(255,255,255,0.5)'
+                  }} />
+                )
+              })}
+            </div>
           </div>
           <div style={{ display: 'flex', gap: '2rem', marginTop: '1rem', background: 'rgba(0,0,0,0.5)', padding: '0.5rem 1rem', borderRadius: '12px' }}>
             {Object.entries(players).map(([pid, p]) => (

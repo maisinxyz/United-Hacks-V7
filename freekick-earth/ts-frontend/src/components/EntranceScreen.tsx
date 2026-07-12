@@ -59,7 +59,7 @@ export default function EntranceScreen({ onPlaySingle, onPlayMulti }: Props) {
                 </button>
               </div>
 
-              <button className="wizard-btn outline small" onClick={() => setMode('menu')} style={{ marginTop: '1rem' }}>
+              <button className="wizard-btn small" onClick={() => setMode('menu')} style={{ marginTop: '1rem', background: '#64748b', color: 'white', border: 'none', boxShadow: 'none' }}>
                 ← BACK
               </button>
             </div>

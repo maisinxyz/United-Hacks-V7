@@ -527,6 +527,7 @@ class Room:
         self.round: int = 0
         self.max_rounds: int = 5
         self.ready_count: int = 0
+        self.history: List[str] = []
 
 class RoomManager:
     def __init__(self):
@@ -564,6 +565,15 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, client_id: st
         return
 
     if client_id not in room.players:
+        # Clear out any disconnected players to free up space
+        disconnected = [pid for pid, p in room.players.items() if not p.get("connected", False)]
+        for pid in disconnected:
+            del room.players[pid]
+            # Also remove their role
+            roles_to_remove = [r for r, r_pid in list(room.roles.items()) if r_pid == pid]
+            for r in roles_to_remove:
+                del room.roles[r]
+
         if len(room.players) >= 2:
             await websocket.send_json({"type": "error", "message": "Room is full"})
             await websocket.close()
@@ -583,19 +593,19 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, client_id: st
         else:
             # Just send state
             state_msg = {
+            msg = {
                 "type": "room_state",
                 "players": {pid: {"name": p["name"], "score": p["score"], "connected": p["connected"]} for pid, p in room.players.items()},
                 "roles": room.roles
             }
             if room.stadium:
-                state_msg.update({
-                    "stadium": room.stadium.model_dump(),
-                    "conditions": room.conditions.model_dump(),
-                    "ball_positions": room.ball_positions,
-                    "turn": room.current_turn,
-                    "round": room.round
-                })
-            await websocket.send_json(state_msg)
+                msg["stadium"] = room.stadium.model_dump()
+                msg["conditions"] = room.conditions.model_dump()
+                msg["ball_positions"] = room.ball_positions
+                msg["turn"] = room.current_turn
+                msg["round"] = room.round
+                msg["history"] = room.history
+            await websocket.send_json(msg)
 
         while True:
             data = await websocket.receive_json()
@@ -641,6 +651,7 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, client_id: st
                             "conditions": room.conditions.model_dump(),
                             "ball_positions": room.ball_positions,
                             "turn": room.current_turn,
+                            "history": room.history,
                             "players": {pid: {"name": p["name"], "score": p["score"]} for pid, p in room.players.items()}
                         })
                         
@@ -664,13 +675,15 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, client_id: st
                 res = _classify_result(actual)
                 if res == "goal":
                     room.players[client_id]["score"] += 1
+                room.history.append(res)
                 
                 await manager.broadcast(room, {
                     "type": "shot_result",
                     "player_id": client_id,
                     "trajectory": [pt.model_dump() for pt in actual],
                     "result": res,
-                    "score": room.players[client_id]["score"]
+                    "score": room.players[client_id]["score"],
+                    "history": room.history
                 })
                 
             elif data["type"] == "animation_complete":
@@ -678,13 +691,8 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, client_id: st
                 if room.ready_count >= len(room.players):
                     room.ready_count = 0
                     
-                    pids = list(room.players.keys())
-                    current_idx = pids.index(room.current_turn)
-                    if current_idx == 0:
-                        room.current_turn = pids[1]
-                    else:
-                        room.current_turn = pids[0]
-                        room.round += 1
+                    room.current_turn = room.roles.get("kicker")
+                    room.round += 1
                         
                     if room.round >= room.max_rounds:
                         await manager.broadcast(room, {
@@ -695,7 +703,8 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str, client_id: st
                         await manager.broadcast(room, {
                             "type": "turn_start",
                             "turn": room.current_turn,
-                            "round": room.round
+                            "round": room.round,
+                            "history": room.history
                         })
 
     except WebSocketDisconnect:
