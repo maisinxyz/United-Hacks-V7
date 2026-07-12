@@ -57,7 +57,7 @@ export default function VerticalAngleOverlay({ angle, onUpdate, onNext, onBack }
   }
 
   return (
-    <div className="overlay-card frosted bottom-panel">
+    <div className="overlay-card frosted bottom-wide-panel select-none">
       <div className="step-header">
         <span className="step-number">04</span>
         <h2>Vertical Pitch</h2>
@@ -66,7 +66,7 @@ export default function VerticalAngleOverlay({ angle, onUpdate, onNext, onBack }
       <div className="angle-container">
         <svg
           ref={svgRef}
-          viewBox="0 0 400 300"
+          viewBox="0 90 400 160"
           className="angle-svg"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}

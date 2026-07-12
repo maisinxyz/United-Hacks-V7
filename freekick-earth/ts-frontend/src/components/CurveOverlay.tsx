@@ -7,9 +7,10 @@ interface Props {
   onKick: () => void
   onBack: () => void
   loading: boolean
+  ballPosition: [number, number]
 }
 
-export default function CurveOverlay({ config, onUpdate, onKick, onBack, loading }: Props) {
+export default function CurveOverlay({ config, onUpdate, onKick, onBack, loading, ballPosition }: Props) {
   const MAX_SPIN = 60
 
   const [x, setX] = useState(() => Math.round(config.spinAxisX * (config.spinRate / MAX_SPIN) * 100) || 0)
@@ -43,8 +44,11 @@ export default function CurveOverlay({ config, onUpdate, onKick, onBack, loading
     })
   }
 
+  // Same dynamic positioning: if ball is on left, panel goes left.
+  const sideClass = ballPosition[0] <= 0 ? 'bottom-left-panel' : 'bottom-right-panel'
+
   return (
-    <div className="overlay-card frosted side-panel right-panel">
+    <div className={`overlay-card frosted ${sideClass} select-none`}>
       <div className="step-header">
         <span className="step-number">04</span>
         <h2>Curve Settings</h2>

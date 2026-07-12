@@ -56,7 +56,7 @@ export default function PowerOverlay({ power, onUpdate, onNext, onBack }: Props)
   const scale = 0.8 + fraction * 0.4
 
   return (
-    <div className="overlay-card frosted side-panel left-panel">
+    <div className="overlay-card frosted side-panel left-panel fixed-size-card select-none">
       <div className="step-header">
         <span className="step-number">02</span>
         <h2>Shot Power</h2>

@@ -89,13 +89,53 @@ body { font-family: var(--font-sans); color: var(--color-text); background: blac
 }
 .overlay-card.left-panel { left: 40px; }
 .overlay-card.right-panel { right: 40px; }
-.overlay-card.bottom-panel {
+.overlay-card.bottom-right-panel {
   position: absolute;
   right: 40px;
   bottom: 40px;
   left: auto;
   max-width: 420px;
   width: min(92vw, 420px);
+}
+.overlay-card.bottom-left-panel {
+  position: absolute;
+  left: 40px;
+  bottom: 40px;
+  right: auto;
+  max-width: 420px;
+  width: min(92vw, 420px);
+}
+.overlay-card.bottom-center-panel {
+  position: absolute;
+  bottom: 40px;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  max-width: 420px;
+  width: min(92vw, 420px);
+}
+.overlay-card.bottom-wide-panel {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  right: 24px;
+  max-width: none;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 32px;
+  gap: 32px;
+}
+.bottom-wide-panel .angle-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+.bottom-wide-panel .step-actions {
+  margin-top: 0;
+  gap: 12px;
 }
 
 @keyframes slide-up {
@@ -558,4 +598,23 @@ input[type="range"] { width: 100%; accent-color: var(--color-pitch); }
   font-size: 1.25rem;
   color: #cbd5e1;
   margin: 0;
+}
+
+/* ============================================================
+   Fixed Size Power Card
+   ============================================================ */
+
+.fixed-size-card {
+  width: 400px !important;
+  height: 520px !important;
+  min-height: 520px !important;
+  box-sizing: border-box;
+}
+
+.fixed-size-card .power-container {
+  flex-grow: 1;
+}
+
+.fixed-size-card .power-readout {
+  width: 90px;
 }

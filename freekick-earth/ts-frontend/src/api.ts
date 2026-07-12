@@ -84,7 +84,7 @@ export async function fetchGameInit(): Promise<GameInitResult> {
   return data
 }
 
-export async function runSimulation(params: SimulateParams): Promise<SimulateResult> {
-  const { data } = await axios.post<SimulateResult>(`${BASE}/simulate`, params)
+export async function runSimulation(params: SimulateParams, signal?: AbortSignal): Promise<SimulateResult> {
+  const { data } = await axios.post<SimulateResult>(`${BASE}/simulate`, params, { signal })
   return data
 }

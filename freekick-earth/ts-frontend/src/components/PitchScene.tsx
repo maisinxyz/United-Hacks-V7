@@ -67,6 +67,8 @@ export default function PitchScene({
           position={camera.position} 
           instant={instantCamera} 
           triggerRecenter={triggerRecenter}
+          trackBall={stepIndex === 4}
+          ballRef={ballRef}
         />
 
         <ambientLight intensity={0.6} />
@@ -89,6 +91,7 @@ export default function PitchScene({
           <WindParticles speed={config.conditions.wind_speed_m_s} direction={config.conditions.wind_direction_deg} />
         )}
         <GoalPosts ballRef={ballRef} />
+        <GoalPosts ballRef={ballRef} isNorth />
         <DistanceMarkers />
 
         {/* Ball at starting position when no trajectory */}
@@ -161,8 +164,13 @@ export default function PitchScene({
   )
 }
 
-function CameraController({ position, target, instant = false, triggerRecenter = 0 }: { position: [number, number, number]; target: [number, number, number]; instant?: boolean; triggerRecenter?: number }) {
+function CameraController({ 
+  position, target, instant = false, triggerRecenter = 0, trackBall = false, ballRef 
+}: { 
+  position: [number, number, number]; target: [number, number, number]; instant?: boolean; triggerRecenter?: number; trackBall?: boolean; ballRef?: React.MutableRefObject<THREE.Mesh> 
+}) {
   const controlsRef = useRef<any>(null)
+  const vec = useMemo(() => new THREE.Vector3(), [])
 
   useEffect(() => {
     if (controlsRef.current) {
@@ -173,6 +181,14 @@ function CameraController({ position, target, instant = false, triggerRecenter =
       )
     }
   }, [position, target, instant, triggerRecenter])
+
+  useFrame(() => {
+    if (trackBall && ballRef?.current && controlsRef.current) {
+      controlsRef.current.getTarget(vec)
+      vec.lerp(ballRef.current.position, 0.1)
+      controlsRef.current.setTarget(vec.x, vec.y, vec.z, false)
+    }
+  })
 
   return (
     <CameraControls 
@@ -234,22 +250,51 @@ function AimPreview({ config, ballPosition = [0, 0] }: { config: KickConfig; bal
 // Spin Arrows
 // ---------------------------------------------------------------
 function Pitch() {
+  const y = 0.02
+  const hw = 20
+  const hl = 27
+  
+  const circlePts: [number, number, number][] = []
+  for (let i = 0; i <= 32; i++) {
+    const angle = (i / 32) * Math.PI * 2
+    circlePts.push([Math.cos(angle) * 5, y, Math.sin(angle) * 5])
+  }
+
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 20]} receiveShadow>
-        <planeGeometry args={[40, 60]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
+        <planeGeometry args={[40, 54]} />
         <meshStandardMaterial color="#3ba55d" />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 20]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
         <planeGeometry args={[120, 120]} />
         <meshStandardMaterial color="#4caf50" />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+      
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, y, 0]}>
         <circleGeometry args={[0.2, 32]} />
         <meshStandardMaterial color="white" />
       </mesh>
-      <PitchLine points={[[-9, 0.02, 10], [-9, 0.02, 27], [9, 0.02, 27], [9, 0.02, 10]]} />
-      <PitchLine points={[[-20, 0.02, 27], [20, 0.02, 27]]} />
+
+      <PitchLine points={circlePts} />
+      <PitchLine points={[[-hw, y, 0], [hw, y, 0]]} />
+      <PitchLine points={[[-hw, y, -hl], [hw, y, -hl], [hw, y, hl], [-hw, y, hl], [-hw, y, -hl]]} />
+
+      {/* South (Main) Goal Lines */}
+      <PitchLine points={[[-12, y, hl], [-12, y, hl - 14], [12, y, hl - 14], [12, y, hl]]} />
+      <PitchLine points={[[-5, y, hl], [-5, y, hl - 5], [5, y, hl - 5], [5, y, hl]]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, y, hl - 9]}>
+        <circleGeometry args={[0.15, 16]} />
+        <meshStandardMaterial color="white" />
+      </mesh>
+
+      {/* North Goal Lines */}
+      <PitchLine points={[[-12, y, -hl], [-12, y, -hl + 14], [12, y, -hl + 14], [12, y, -hl]]} />
+      <PitchLine points={[[-5, y, -hl], [-5, y, -hl + 5], [5, y, -hl + 5], [5, y, -hl]]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, y, -hl + 9]}>
+        <circleGeometry args={[0.15, 16]} />
+        <meshStandardMaterial color="white" />
+      </mesh>
     </group>
   )
 }
@@ -401,15 +446,16 @@ function DynamicNet({
   )
 }
 
-function GoalPosts({ ballRef }: { ballRef: React.MutableRefObject<THREE.Mesh> }) {
+function GoalPosts({ ballRef, isNorth = false }: { ballRef: React.MutableRefObject<THREE.Mesh>; isNorth?: boolean }) {
   const postRadius = 0.06
   const crossbarY = 2.44
   const halfWidth = 7.32 / 2
-  const goalZ = 27
+  const goalZ = isNorth ? -27 : 27
   const netDepth = 2.0
+  const rotY = isNorth ? Math.PI : 0
 
   return (
-    <group position={[0, 0, goalZ]}>
+    <group position={[0, 0, goalZ]} rotation={[0, rotY, 0]}>
       {/* Posts */}
       <mesh position={[-halfWidth, crossbarY / 2, 0]} castShadow>
         <cylinderGeometry args={[postRadius, postRadius, crossbarY, 12]} />
@@ -538,6 +584,7 @@ function TrajectoryAnimation({
   const [frameIndex, setFrameIndex] = useState(0)
   const [animating, setAnimating] = useState(true)
   const completedRef = useRef(false)
+  const missDetectedRef = useRef(false)
 
   const pathPoints = useMemo(() => trajectory.map((p) => new THREE.Vector3(p.x, p.y, p.z)), [trajectory])
   const animatedTrajectory = useMemo(() => extendTrajectoryWithPhysics(trajectory), [trajectory])
@@ -549,10 +596,11 @@ function TrajectoryAnimation({
     setFrameIndex(0)
     setAnimating(true)
     completedRef.current = false
+    missDetectedRef.current = false
   }, [trajectory])
 
   useEffect(() => {
-    if (!animating && !completedRef.current) {
+    if (!animating && !completedRef.current && !missDetectedRef.current) {
       completedRef.current = true
       onComplete?.()
     }
@@ -575,6 +623,12 @@ function TrajectoryAnimation({
           ballRef.current.rotation.z -= dx / 0.11
         }
         ballRef.current.rotation.y += horizontalDistance * 0.15
+
+        if (!missDetectedRef.current && pt.z > 27.2 && (pt.x < -3.7 || pt.x > 3.7 || pt.y > 2.5)) {
+          missDetectedRef.current = true
+          completedRef.current = true
+          onComplete?.()
+        }
       }
     } else {
       setAnimating(false)
@@ -621,6 +675,32 @@ function extendTrajectoryWithPhysics(trajectory: TrajectoryPoint[]): TrajectoryP
 
   for (let i = 0; i < Math.ceil(maxExtraTime / step); i++) {
     time += step
+
+    const inNet = z >= 27.0 && z <= 29.5 && x >= -3.55 && x <= 3.55 && y <= 2.40
+    if (inNet) {
+      // Net catching the ball
+      vx *= 0.3
+      vy *= 0.3
+      vz *= 0.3
+      vy -= gravity * step
+
+      x += vx * step
+      y += vy * step
+      z += vz * step
+
+      if (y <= groundY) {
+        y = groundY
+        vy = 0
+        vx = 0
+        vz = 0
+      }
+
+      points.push({ x: round3(x), y: round3(y), z: round3(z), t: round3(time) })
+      
+      const speed = Math.sqrt(vx*vx + vy*vy + vz*vz)
+      if (speed < 0.05 && y <= groundY) break
+      continue
+    }
 
     if (!rolling) {
       vy -= gravity * step

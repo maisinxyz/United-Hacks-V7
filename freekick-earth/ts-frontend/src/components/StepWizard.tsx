@@ -12,6 +12,7 @@ import VerticalAngleOverlay from './VerticalAngleOverlay'
 import CurveOverlay from './CurveOverlay'
 import StadiumBadge from './StadiumBadge'
 import PitchScene, { type CameraConfig } from './PitchScene'
+import axios from 'axios'
 import { fetchGameInit, runSimulation, type SimulateResult, type StadiumConditions, type TrajectoryPoint } from '../api'
 
 export interface KickConfig {
@@ -123,7 +124,8 @@ export default function StepWizard() {
     const conditions = config.conditions
     if (!conditions) return
     
-    let isCancelled = false
+    const controller = new AbortController()
+    
     const fetchPreview = async () => {
       try {
         const result = await runSimulation({
@@ -138,17 +140,19 @@ export default function StepWizard() {
           conditions,
           ball_start_x: currentBallPos[0],
           ball_start_z: currentBallPos[1],
-        })
-        if (!isCancelled) setPreviewTrajectory(result.trajectory)
-      } catch (e) {
-        console.error("Failed to get preview trajectory:", e)
+        }, controller.signal)
+        setPreviewTrajectory(result.trajectory)
+      } catch (e: any) {
+        if (e.name !== 'CanceledError' && e.name !== 'AbortError' && !axios.isCancel(e)) {
+          console.error("Failed to get preview trajectory:", e)
+        }
       }
     }
     
     fetchPreview()
 
     return () => {
-      isCancelled = true
+      controller.abort()
     }
   }, [step, config, currentBallPos])
 
@@ -271,13 +275,13 @@ export default function StepWizard() {
           <PowerOverlay power={config.power} onUpdate={(power) => updateConfig({ power })} onNext={next} onBack={() => {}} />
         )}
         {step === 1 && (
-          <HorizontalAngleOverlay angle={config.horizontalAngle} onUpdate={(a) => updateConfig({ horizontalAngle: a })} onNext={next} onBack={back} />
+          <HorizontalAngleOverlay angle={config.horizontalAngle} onUpdate={(a) => updateConfig({ horizontalAngle: a })} onNext={next} onBack={back} ballPosition={currentBallPos} />
         )}
         {step === 2 && (
           <VerticalAngleOverlay angle={config.verticalAngle} onUpdate={(a) => updateConfig({ verticalAngle: a })} onNext={next} onBack={back} />
         )}
         {step === 3 && (
-          <CurveOverlay config={config} onUpdate={updateConfig} onKick={handleKick} onBack={back} loading={loading} />
+          <CurveOverlay config={config} onUpdate={updateConfig} onKick={handleKick} onBack={back} loading={loading} ballPosition={currentBallPos} />
         )}
         {step === 4 && simResult && resultRevealed && (
           <div className="result-actions">

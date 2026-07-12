@@ -9,6 +9,7 @@ interface Props {
   onUpdate: (angle: number) => void
   onNext: () => void
   onBack: () => void
+  ballPosition: [number, number]
 }
 
 const MIN_ANGLE = -30
@@ -17,7 +18,7 @@ const ARC_RADIUS = 140
 const CENTER_X = 200
 const CENTER_Y = 240
 
-export default function HorizontalAngleOverlay({ angle, onUpdate, onNext, onBack }: Props) {
+export default function HorizontalAngleOverlay({ angle, onUpdate, onNext, onBack, ballPosition }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const dragging = useRef(false)
 
@@ -56,8 +57,11 @@ export default function HorizontalAngleOverlay({ angle, onUpdate, onNext, onBack
     arcPoints.push(`${CENTER_X + ARC_RADIUS * Math.sin(r)},${CENTER_Y - ARC_RADIUS * Math.cos(r)}`)
   }
 
+  // If the ball is on the left side (x <= 0), placing the UI on the left prevents blocking the center/right view.
+  const sideClass = ballPosition[0] <= 0 ? 'left-panel' : 'right-panel'
+
   return (
-    <div className="overlay-card frosted side-panel left-panel">
+    <div className={`overlay-card frosted side-panel ${sideClass} select-none`}>
       <div className="step-header">
         <span className="step-number">03</span>
         <h2>Horizontal Aim</h2>
