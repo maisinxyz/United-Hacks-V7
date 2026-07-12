@@ -587,7 +587,7 @@ function ArenaEnvironment({ stadiumId, hideRoof = false }: { stadiumId: string; 
   const primitives = getStadiumPrimitives(stadiumId, hideRoof)
 
   return (
-    <group>
+    <group position={[0, 0, -22.75]} scale={[1, 1, 1.75]}>
       {primitives.map((p: any, i: number) => {
         if (p.type === 'cylinder') {
           return (
