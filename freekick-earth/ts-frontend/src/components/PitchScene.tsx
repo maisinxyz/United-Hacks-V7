@@ -53,12 +53,16 @@ export default function PitchScene({
 }: Props) {
   const ballRef = useRef<THREE.Mesh>(null!)
   const [triggerRecenter, setTriggerRecenter] = useState(0)
+  const [isCrowdMuted, setIsCrowdMuted] = useState(false)
+  const crowdAudioRef = useRef<HTMLAudioElement | null>(null)
 
   // Ambient crowd noise
   useEffect(() => {
     const crowdAudio = new Audio('/crowd.mp3')
     crowdAudio.loop = true
     crowdAudio.volume = 0.15 // Moderate volume: not too loud, not too quiet
+    crowdAudio.muted = isCrowdMuted
+    crowdAudioRef.current = crowdAudio
 
     const playPromise = crowdAudio.play()
     if (playPromise !== undefined) {
@@ -78,7 +82,14 @@ export default function PitchScene({
       crowdAudio.pause()
       crowdAudio.src = ''
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (crowdAudioRef.current) {
+      crowdAudioRef.current.muted = isCrowdMuted
+    }
+  }, [isCrowdMuted])
 
   return (
     <div className="pitch-scene-wrapper">
@@ -208,17 +219,29 @@ export default function PitchScene({
 
       {dimmed && <div className="scene-dim" />}
 
-      {stepIndex >= 0 && stepIndex <= 3 && (
+      <div style={{ position: 'absolute', bottom: '30px', left: '30px', zIndex: 100, display: 'flex', gap: '12px' }}>
+        {stepIndex >= 0 && stepIndex <= 3 && (
+          <button
+            className="wizard-btn secondary"
+            style={{ pointerEvents: 'auto', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(8px)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); setTriggerRecenter(t => t + 1) }}
+          >
+            <span style={{ marginRight: '8px' }}>🎯</span>
+            Recenter
+          </button>
+        )}
         <button
           className="wizard-btn secondary"
-          style={{ position: 'absolute', bottom: '30px', left: '30px', zIndex: 100, pointerEvents: 'auto', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(8px)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+          style={{ pointerEvents: 'auto', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(8px)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => { e.stopPropagation(); setTriggerRecenter(t => t + 1) }}
+          onClick={(e) => { e.stopPropagation(); setIsCrowdMuted(!isCrowdMuted) }}
+          title={isCrowdMuted ? "Unmute Crowd" : "Mute Crowd"}
         >
-          <span style={{ marginRight: '8px' }}>🎯</span>
-          Recenter
+          <span style={{ marginRight: '8px' }}>{isCrowdMuted ? '🔇' : '🔊'}</span>
+          Crowd
         </button>
-      )}
+      </div>
 
       {resultVisible && result && (
         <div
