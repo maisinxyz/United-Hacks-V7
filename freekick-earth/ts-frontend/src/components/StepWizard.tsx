@@ -77,7 +77,11 @@ function getCameraConfig(step: number, bp: [number, number]): CameraConfig {
   return configs[step] || configs[0]
 }
 
-export default function StepWizard() {
+interface StepWizardProps {
+  onMultiplayerMode?: (mode: 'create' | 'join', roomCode?: string) => void
+}
+
+export default function StepWizard({ onMultiplayerMode }: StepWizardProps = {}) {
   const [step, setStep] = useState(-2)
   const [config, setConfig] = useState<KickConfig>(INITIAL_CONFIG)
   const [simResult, setSimResult] = useState<SimulateResult | null>(null)
@@ -277,7 +281,7 @@ export default function StepWizard() {
         />
       </div>
 
-      {step === -2 && <EntranceScreen onPlay={handlePlay} />}
+      {step === -2 && <EntranceScreen onPlaySingle={handlePlay} onPlayMulti={onMultiplayerMode || (() => {})} />}
 
       {step === -1 && config.conditions && (
         <FlyoverScreen

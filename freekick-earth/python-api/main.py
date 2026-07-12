@@ -14,9 +14,11 @@ import random
 import sys
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, List, Any
+import string
+import asyncio
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -508,3 +510,179 @@ async def simulate(req: SimulateRequest):
         result=result,
         keeper_trajectory=[],
     )
+
+# ---------------------------------------------------------------
+# Multiplayer
+# ---------------------------------------------------------------
+
+class Room:
+    def __init__(self, code: str):
+        self.code = code
+        self.players: Dict[str, dict] = {} # client_id -> { "ws": WebSocket, "score": 0, "name": str, "connected": bool }
+        self.stadium: Optional[StadiumOut] = None
+        self.conditions: Optional[ConditionsOut] = None
+        self.ball_positions: List[List[float]] = []
+        self.current_turn: Optional[str] = None
+        self.round: int = 0
+        self.max_rounds: int = 5
+        self.ready_count: int = 0
+
+class RoomManager:
+    def __init__(self):
+        self.rooms: Dict[str, Room] = {}
+
+    def generate_code(self) -> str:
+        while True:
+            code = "".join(random.choices(string.ascii_uppercase, k=4))
+            if code not in self.rooms:
+                return code
+
+    async def broadcast(self, room: Room, message: dict):
+        for p in room.players.values():
+            if p["connected"]:
+                await p["ws"].send_json(message)
+
+manager = RoomManager()
+
+class CreateRoomResponse(BaseModel):
+    room_code: str
+
+@app.post("/multiplayer/create", response_model=CreateRoomResponse)
+async def create_room():
+    code = manager.generate_code()
+    manager.rooms[code] = Room(code)
+    return CreateRoomResponse(room_code=code)
+
+@app.websocket("/multiplayer/ws/{room_code}/{client_id}")
+async def websocket_endpoint(websocket: WebSocket, room_code: str, client_id: str, name: str = "Player"):
+    await websocket.accept()
+    room = manager.rooms.get(room_code)
+    if not room:
+        await websocket.send_json({"type": "error", "message": "Room not found"})
+        await websocket.close()
+        return
+
+    if client_id not in room.players:
+        if len(room.players) >= 2:
+            await websocket.send_json({"type": "error", "message": "Room is full"})
+            await websocket.close()
+            return
+        room.players[client_id] = {"ws": websocket, "score": 0, "name": name, "connected": True}
+    else:
+        room.players[client_id]["ws"] = websocket
+        room.players[client_id]["connected"] = True
+
+    try:
+        if len(room.players) == 2 and room.round == 0 and not room.stadium:
+            # Initialize game
+            stadium_data = random.choice(STADIUMS_LIST)
+            stadium_out = StadiumOut(**stadium_data)
+            room.stadium = stadium_out
+            
+            # Use fixed standard conditions to avoid extra complex logic
+            room.conditions = ConditionsOut(
+                stadium=stadium_out,
+                temperature_celsius=20.0,
+                pressure_hpa=1013.25,
+                humidity_percent=50.0,
+                wind_speed_m_s=0.0,
+                wind_direction_deg=0.0,
+                air_density=1.225,
+                data_source="randomized"
+            )
+            # Generate 5 ball positions
+            for _ in range(5):
+                bx = round(random.uniform(-12, 12), 1)
+                bz = round(random.uniform(2, 12), 1)
+                room.ball_positions.append([bx, bz])
+            
+            room.current_turn = list(room.players.keys())[0] # Player 1 starts
+            
+            await manager.broadcast(room, {
+                "type": "game_start",
+                "stadium": room.stadium.model_dump(),
+                "conditions": room.conditions.model_dump(),
+                "ball_positions": room.ball_positions,
+                "turn": room.current_turn,
+                "players": {pid: {"name": p["name"], "score": p["score"]} for pid, p in room.players.items()}
+            })
+        else:
+            # Just send state
+            state_msg = {
+                "type": "room_state",
+                "players": {pid: {"name": p["name"], "score": p["score"], "connected": p["connected"]} for pid, p in room.players.items()},
+            }
+            if room.stadium:
+                state_msg.update({
+                    "stadium": room.stadium.model_dump(),
+                    "conditions": room.conditions.model_dump(),
+                    "ball_positions": room.ball_positions,
+                    "turn": room.current_turn,
+                    "round": room.round
+                })
+            await websocket.send_json(state_msg)
+
+        while True:
+            data = await websocket.receive_json()
+            if data["type"] == "take_shot":
+                req = SimulateRequest(**data["params"])
+                
+                spin_axis = (req.spin_axis_x, req.spin_axis_y, req.spin_axis_z)
+                actual = _run_simulation(
+                    power=req.power,
+                    h_angle=req.horizontal_angle,
+                    v_angle=req.vertical_angle,
+                    spin_rate=req.spin_rate,
+                    spin_axis=spin_axis,
+                    air_density=room.conditions.air_density,
+                    wind_speed=room.conditions.wind_speed_m_s,
+                    wind_dir_deg=room.conditions.wind_direction_deg,
+                    gravity=9.81,
+                    ball_start_x=req.ball_start_x,
+                    ball_start_z=req.ball_start_z,
+                )
+                res = _classify_result(actual)
+                if res == "goal":
+                    room.players[client_id]["score"] += 1
+                
+                await manager.broadcast(room, {
+                    "type": "shot_result",
+                    "player_id": client_id,
+                    "trajectory": [pt.model_dump() for pt in actual],
+                    "result": res,
+                    "score": room.players[client_id]["score"]
+                })
+                
+            elif data["type"] == "animation_complete":
+                room.ready_count += 1
+                if room.ready_count >= len(room.players):
+                    room.ready_count = 0
+                    
+                    pids = list(room.players.keys())
+                    current_idx = pids.index(room.current_turn)
+                    if current_idx == 0:
+                        room.current_turn = pids[1]
+                    else:
+                        room.current_turn = pids[0]
+                        room.round += 1
+                        
+                    if room.round >= room.max_rounds:
+                        await manager.broadcast(room, {
+                            "type": "game_over",
+                            "players": {pid: {"name": p["name"], "score": p["score"]} for pid, p in room.players.items()}
+                        })
+                    else:
+                        await manager.broadcast(room, {
+                            "type": "turn_start",
+                            "turn": room.current_turn,
+                            "round": room.round
+                        })
+
+    except WebSocketDisconnect:
+        room.players[client_id]["connected"] = False
+        await manager.broadcast(room, {
+            "type": "player_disconnected",
+            "player_id": client_id
+        })
+        if all(not p["connected"] for p in room.players.values()):
+            del manager.rooms[room_code]
