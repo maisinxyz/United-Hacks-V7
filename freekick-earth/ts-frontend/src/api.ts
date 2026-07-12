@@ -6,7 +6,16 @@
 import axios from 'axios'
 
 // The Vite proxy rewrites /api/* → http://localhost:8000/*
-const BASE = '/api'
+// In production (Vercel), we point directly to the Render backend.
+export const API_BASE_URL = import.meta.env.PROD 
+  ? 'https://united-hacks-v7.onrender.com' 
+  : '/api'
+
+export const WS_BASE_URL = import.meta.env.PROD
+  ? 'wss://united-hacks-v7.onrender.com'
+  : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/api`
+
+const BASE = API_BASE_URL
 
 // --- Types ---
 

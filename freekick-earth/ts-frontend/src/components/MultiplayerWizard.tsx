@@ -11,10 +11,11 @@ import ShotTimingOverlay, { type TimingResult } from './ShotTimingOverlay'
 import StadiumBadge from './StadiumBadge'
 import SnowOverlay from './SnowOverlay'
 import FlyoverScreen from './FlyoverScreen'
+import { WS_BASE_URL, API_BASE_URL, type Stadium, type StadiumConditions } from '../api'
 import PitchScene, { type CameraConfig } from './PitchScene'
 import GoalKeeperScreen from './GoalKeeperScreen'
 import axios from 'axios'
-import { runSimulation, type SimulateResult, type StadiumConditions, type TrajectoryPoint } from '../api'
+import { runSimulation, type SimulateResult, type TrajectoryPoint } from '../api'
 
 export interface KickConfig {
   power: number
@@ -108,7 +109,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
       let code = roomCode
       if (mode === 'create') {
         try {
-          const res = await axios.post('/api/multiplayer/create')
+          const res = await axios.post(`${API_BASE_URL}/multiplayer/create`)
           if (!active) return
           code = res.data.room_code
         } catch (e) {
@@ -120,8 +121,7 @@ export default function MultiplayerWizard({ mode, roomCode, onExit }: Props) {
       if (!active) return
       setActiveRoomCode(code || '')
 
-      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-      const wsUrl = `${proto}://${window.location.host}/api/multiplayer/ws/${code}/${myId}`
+      const wsUrl = `${WS_BASE_URL}/multiplayer/ws/${code}/${myId}`
       
       socket = new WebSocket(wsUrl)
       
