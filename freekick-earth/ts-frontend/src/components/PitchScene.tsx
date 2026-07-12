@@ -52,7 +52,7 @@ export default function PitchScene({
 }: Props) {
   const ballRef = useRef<THREE.Mesh>(null!)
   const [triggerRecenter, setTriggerRecenter] = useState(0)
-  
+
   return (
     <div className="pitch-scene-wrapper">
       <Canvas
@@ -64,10 +64,10 @@ export default function PitchScene({
         }}
         shadows
       >
-        <CameraController 
-          target={camera.target} 
-          position={camera.position} 
-          instant={instantCamera} 
+        <CameraController
+          target={camera.target}
+          position={camera.position}
+          instant={instantCamera}
           triggerRecenter={triggerRecenter}
           trackBall={stepIndex === 5}
           ballRef={ballRef}
@@ -146,7 +146,7 @@ export default function PitchScene({
       {dimmed && <div className="scene-dim" />}
 
       {stepIndex >= 0 && stepIndex <= 3 && (
-        <button 
+        <button
           className="wizard-btn secondary"
           style={{ position: 'absolute', bottom: '30px', left: '30px', zIndex: 100, pointerEvents: 'auto', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(8px)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
           onClick={() => setTriggerRecenter(t => t + 1)}
@@ -170,9 +170,9 @@ export default function PitchScene({
   )
 }
 
-function CameraController({ 
+function CameraController({
   position, target, instant = false, triggerRecenter = 0, trackBall = false, ballRef, restricted = false
-}: { 
+}: {
   position: [number, number, number]; target: [number, number, number]; instant?: boolean; triggerRecenter?: number; trackBall?: boolean; ballRef?: React.MutableRefObject<THREE.Mesh>; restricted?: boolean
 }) {
   const controlsRef = useRef<any>(null)
@@ -221,9 +221,9 @@ function CameraController({
   })
 
   return (
-    <CameraControls 
-      ref={controlsRef} 
-      makeDefault 
+    <CameraControls
+      ref={controlsRef}
+      makeDefault
       maxPolarAngle={Math.PI / 2 - 0.05} // Don't let camera go below ground
       minDistance={restricted ? 2 : 0}
       maxDistance={restricted ? 25 : 250}
@@ -295,7 +295,7 @@ function Pitch() {
   const y = 0.02
   const hw = 20
   const hl = 27
-  
+
   const circlePts: [number, number, number][] = []
   for (let i = 0; i <= 32; i++) {
     const angle = (i / 32) * Math.PI * 2
@@ -312,7 +312,7 @@ function Pitch() {
         <planeGeometry args={[120, 120]} />
         <meshStandardMaterial color="#4caf50" />
       </mesh>
-      
+
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, y, 0]}>
         <circleGeometry args={[0.2, 32]} />
         <meshStandardMaterial color="white" />
@@ -364,7 +364,7 @@ function DynamicNet({
   const velocities = useRef<Float32Array | null>(null)
   const worldPosVec = useMemo(() => new THREE.Vector3(), [])
   const localPosVec = useMemo(() => new THREE.Vector3(), [])
-  
+
   useEffect(() => {
     if (meshRef.current) {
       const geometry = meshRef.current.geometry
@@ -375,48 +375,48 @@ function DynamicNet({
 
   useFrame((_, delta) => {
     if (!meshRef.current || !initialPositions.current || !velocities.current || !ballRef.current) return
-    
+
     // Cap delta to prevent physics explosion on lag spikes
     const dt = Math.min(delta, 0.03)
-    
+
     const geometry = meshRef.current.geometry
     const positions = geometry.attributes.position.array as Float32Array
     const ballPos = ballRef.current.position
 
     let needsUpdate = false
-    
+
     // Physics parameters
     const kAnchor = 10.0 // weak anchor to return to shape
     const kStructural = 300.0 // strong structural spring for wave propagation
     const damping = 0.95 // Velocity damping
     const interactionRadius = 0.8 // How close the ball needs to be to affect vertices
-    
+
     const cols = 33 // 32 width segments + 1
     const rows = 17 // 16 height segments + 1
-    
+
     // Precompute displacements
     const disp = new Float32Array(positions.length)
     for (let i = 0; i < positions.length; i++) {
       disp[i] = positions[i] - initialPositions.current[i]
     }
-    
+
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const idx = r * cols + c
         const i3 = idx * 3
-        
+
         // Fixed edges
         if (r === 0 || r === rows - 1 || c === 0 || c === cols - 1) {
           velocities.current[i3] = 0
-          velocities.current[i3+1] = 0
-          velocities.current[i3+2] = 0
+          velocities.current[i3 + 1] = 0
+          velocities.current[i3 + 2] = 0
           continue
         }
-        
+
         let forceX = -kAnchor * disp[i3]
-        let forceY = -kAnchor * disp[i3+1]
-        let forceZ = -kAnchor * disp[i3+2]
-        
+        let forceY = -kAnchor * disp[i3 + 1]
+        let forceZ = -kAnchor * disp[i3 + 2]
+
         // Structural forces (Laplacian)
         const neighbors = [
           (idx - cols) * 3, // top
@@ -424,56 +424,56 @@ function DynamicNet({
           (idx - 1) * 3,    // left
           (idx + 1) * 3     // right
         ]
-        
+
         for (const n3 of neighbors) {
           forceX += kStructural * (disp[n3] - disp[i3])
-          forceY += kStructural * (disp[n3+1] - disp[i3+1])
-          forceZ += kStructural * (disp[n3+2] - disp[i3+2])
+          forceY += kStructural * (disp[n3 + 1] - disp[i3 + 1])
+          forceZ += kStructural * (disp[n3 + 2] - disp[i3 + 2])
         }
-        
+
         // Ball collision
-        localPosVec.set(positions[i3], positions[i3+1], positions[i3+2])
+        localPosVec.set(positions[i3], positions[i3 + 1], positions[i3 + 2])
         worldPosVec.copy(localPosVec)
         worldPosVec.applyMatrix4(meshRef.current.matrixWorld)
-        
+
         const dist = worldPosVec.distanceTo(ballPos)
         if (dist < interactionRadius) {
           const pushForce = Math.pow((interactionRadius - dist) / interactionRadius, 2)
           const dirX = worldPosVec.x - ballPos.x
           const dirY = worldPosVec.y - ballPos.y
           const dirZ = worldPosVec.z - ballPos.z
-          
+
           const pushWorld = new THREE.Vector3(dirX, dirY, dirZ).normalize().multiplyScalar(pushForce * 20.0)
-          
+
           forceX += pushWorld.x
           forceY += pushWorld.y
           forceZ += pushWorld.z
         }
-        
+
         // Update velocity
         velocities.current[i3] += forceX * dt
-        velocities.current[i3+1] += forceY * dt
-        velocities.current[i3+2] += forceZ * dt
-        
+        velocities.current[i3 + 1] += forceY * dt
+        velocities.current[i3 + 2] += forceZ * dt
+
         // Apply damping
         velocities.current[i3] *= damping
-        velocities.current[i3+1] *= damping
-        velocities.current[i3+2] *= damping
-        
+        velocities.current[i3 + 1] *= damping
+        velocities.current[i3 + 2] *= damping
+
         // Update position
         const vx = velocities.current[i3]
-        const vy = velocities.current[i3+1]
-        const vz = velocities.current[i3+2]
-        
+        const vy = velocities.current[i3 + 1]
+        const vz = velocities.current[i3 + 2]
+
         if (Math.abs(vx) > 0.001 || Math.abs(vy) > 0.001 || Math.abs(vz) > 0.001 || Math.abs(disp[i3]) > 0.001) {
           positions[i3] += vx * dt
-          positions[i3+1] += vy * dt
-          positions[i3+2] += vz * dt
+          positions[i3 + 1] += vy * dt
+          positions[i3 + 2] += vz * dt
           needsUpdate = true
         }
       }
     }
-    
+
     if (needsUpdate) {
       geometry.attributes.position.needsUpdate = true
       geometry.computeVertexNormals()
@@ -511,7 +511,7 @@ function GoalPosts({ ballRef, isNorth = false }: { ballRef: React.MutableRefObje
         <cylinderGeometry args={[postRadius, postRadius, 7.32, 12]} />
         <meshStandardMaterial color="white" />
       </mesh>
-      
+
       {/* Net Back */}
       <DynamicNet width={7.32} height={crossbarY} position={[0, crossbarY / 2, netDepth]} ballRef={ballRef} />
       {/* Net Left */}
@@ -542,7 +542,7 @@ const STADIUM_THEMES: Record<string, { seats: string; archType: 'bowl' | 'canopy
 
 function ArenaEnvironment({ stadiumId, hideRoof = false }: { stadiumId: string; hideRoof?: boolean }) {
   const theme = STADIUM_THEMES[stadiumId] || STADIUM_THEMES.default
-  
+
   const blocks = []
 
   // Base lower tier (exists in all)
@@ -568,7 +568,7 @@ function ArenaEnvironment({ stadiumId, hideRoof = false }: { stadiumId: string; 
     // Canopy (SoFi style): massive roof covering everything
     blocks.push({ pos: [-50, 15, 10], rot: [0, 0, -Math.PI / 5], size: [20, 2, 130], color: theme.seats })
     blocks.push({ pos: [50, 15, 10], rot: [0, 0, Math.PI / 5], size: [20, 2, 130], color: theme.seats })
-    
+
     if (!hideRoof) {
       // Massive curved roof (simulated with large thin blocks)
       blocks.push({ pos: [0, 40, 10], rot: [0, 0, 0], size: [140, 2, 160], color: '#ffffff' }) // Main canopy
@@ -577,7 +577,7 @@ function ArenaEnvironment({ stadiumId, hideRoof = false }: { stadiumId: string; 
       blocks.push({ pos: [65, 20, 50], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
       blocks.push({ pos: [-65, 20, -30], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
       blocks.push({ pos: [65, 20, -30], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
-      
+
       // Center hanging jumbotron (Oculus style)
       blocks.push({ pos: [0, 25, 10], rot: [0, 0, 0], size: [20, 5, 20], color: '#111111' })
     }
@@ -752,8 +752,8 @@ function extendTrajectoryWithPhysics(trajectory: TrajectoryPoint[]): TrajectoryP
       }
 
       points.push({ x: round3(x), y: round3(y), z: round3(z), t: round3(time) })
-      
-      const speed = Math.sqrt(vx*vx + vy*vy + vz*vz)
+
+      const speed = Math.sqrt(vx * vx + vy * vy + vz * vz)
       if (speed < 0.05 && y <= groundY) break
       continue
     }
@@ -853,7 +853,7 @@ export function WindParticles({ speed, direction }: { speed: number; direction: 
       if (p.position.x < -30) p.position.x += 60
       if (p.position.z > 30) p.position.z -= 60
       if (p.position.z < -30) p.position.z += 60
-      
+
       dummy.position.copy(p.position)
       // Align lines with velocity
       dummy.lookAt(p.position.clone().add(vel))
@@ -883,7 +883,7 @@ export function Goalkeeper({ trajectory }: { trajectory: TrajectoryPoint[] }) {
 
   useFrame((_, delta) => {
     if (!groupRef.current || trajectory.length === 0) return
-    
+
     // We animate based on elapsed time rather than strict integration frames,
     // because the keeper trajectory only has a few keyframes (start, dive_start, dive_end)
     const t = elapsed + delta
@@ -892,11 +892,11 @@ export function Goalkeeper({ trajectory }: { trajectory: TrajectoryPoint[] }) {
     // Find the current keyframe interval
     let prev = trajectory[0]
     let next = trajectory[trajectory.length - 1]
-    
+
     for (let i = 0; i < trajectory.length - 1; i++) {
-      if (t >= trajectory[i].t && t <= trajectory[i+1].t) {
+      if (t >= trajectory[i].t && t <= trajectory[i + 1].t) {
         prev = trajectory[i]
-        next = trajectory[i+1]
+        next = trajectory[i + 1]
         break
       }
     }
@@ -908,14 +908,14 @@ export function Goalkeeper({ trajectory }: { trajectory: TrajectoryPoint[] }) {
       // Interpolate
       const range = next.t - prev.t
       const fraction = range > 0 ? (t - prev.t) / range : 0
-      
+
       groupRef.current.position.set(
         prev.x + fraction * (next.x - prev.x),
         prev.y + fraction * (next.y - prev.y),
         prev.z + fraction * (next.z - prev.z)
       )
     }
-    
+
     // Make keeper lean into the dive
     const dx = groupRef.current.position.x
     // Lean angle based on x displacement
@@ -962,10 +962,10 @@ export function Goalkeeper({ trajectory }: { trajectory: TrajectoryPoint[] }) {
 
 export function CornerFlag({ speed, direction }: { speed: number; direction: number }) {
   const groupRef = useRef<THREE.Group>(null!)
-  
+
   // Wind direction in radians
   const dirRad = THREE.MathUtils.degToRad(direction)
-  
+
   useFrame((state) => {
     if (groupRef.current) {
       // Basic flapping animation based on speed
@@ -985,7 +985,7 @@ export function CornerFlag({ speed, direction }: { speed: number; direction: num
         <cylinderGeometry args={[0.05, 0.05, 1.5]} />
         <meshStandardMaterial color="#ffffff" />
       </mesh>
-      
+
       {/* Animated Flag Group (rotates around the pole) */}
       <group ref={groupRef} position={[0, 1.25, 0]}>
         {/* Offset flag mesh so it hinges at the pole */}
@@ -994,7 +994,7 @@ export function CornerFlag({ speed, direction }: { speed: number; direction: num
           <meshStandardMaterial color="#ef4444" side={THREE.DoubleSide} />
         </mesh>
       </group>
-      
+
       {/* Speed Label */}
       <Text position={[0, 1.9, 0]} fontSize={0.6} color="#ffffff" anchorX="center" anchorY="bottom" outlineWidth={0.02} outlineColor="#000000">
         {Math.round(speed)} m/s
