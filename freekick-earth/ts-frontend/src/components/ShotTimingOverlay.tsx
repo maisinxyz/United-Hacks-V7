@@ -37,7 +37,6 @@ export default function ShotTimingOverlay({ stamina, onResult }: Props) {
   const [resultZone, setResultZone] = useState<TimingZone | null>(null)
   const animRef = useRef<number>(0)
   const startTime = useRef(performance.now())
-  const directionRef = useRef(1)
 
   // Green zone width scales with stamina: 100 stamina = 20% width, 0 stamina = 5%
   const greenWidth = 0.05 + (stamina / 100) * 0.15 // 5% to 20%

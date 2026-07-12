@@ -6,7 +6,7 @@
 
 import { useRef, useState, useMemo, useEffect, forwardRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Line, Text, CameraControls } from '@react-three/drei'
+import { Line, Text, CameraControls, Sky, Cloud } from '@react-three/drei'
 import * as THREE from 'three'
 import type { TrajectoryPoint } from '../api'
 import type { KickConfig } from './StepWizard'
@@ -85,8 +85,16 @@ export default function PitchScene({
         />
         <hemisphereLight color="#87ceeb" groundColor="#2d8a4e" intensity={0.4} />
 
-        <color attach="background" args={['#87ceeb']} />
+        <Sky sunPosition={[100, 20, 100]} turbidity={8} rayleigh={0.5} />
         <fog attach="fog" args={['#87ceeb', 80, 300]} />
+        
+        {/* Clouds */}
+        <Cloud position={[-60, 50, -100]} speed={0.1} opacity={0.4} segments={20} scale={2} />
+        <Cloud position={[60, 60, -80]} speed={0.15} opacity={0.5} segments={25} scale={2} />
+        <Cloud position={[0, 70, -120]} speed={0.1} opacity={0.6} segments={30} scale={3} />
+        
+        {/* Birds */}
+        <Birds />
 
         <Pitch />
         <ArenaEnvironment stadiumId={config.stadiumId} hideRoof={stepIndex < 0} />
@@ -534,51 +542,11 @@ function GoalPosts({ ballRef, isNorth = false }: { ballRef: React.MutableRefObje
 // ---------------------------------------------------------------
 
 function ArenaEnvironment({ stadiumId, hideRoof = false }: { stadiumId: string; hideRoof?: boolean }) {
-  const theme = STADIUM_THEMES[stadiumId] || STADIUM_THEMES.default
-
-  const blocks = []
-
-  // Base lower tier (exists in all)
-  blocks.push({ pos: [-40, 5, 10], rot: [0, 0, -Math.PI / 8], size: [20, 2, 120], color: theme.seats }) // Left
-  blocks.push({ pos: [40, 5, 10], rot: [0, 0, Math.PI / 8], size: [20, 2, 120], color: theme.seats })  // Right
-  blocks.push({ pos: [0, 5, 50], rot: [-Math.PI / 8, 0, 0], size: [100, 2, 20], color: theme.seats })   // Back
-  blocks.push({ pos: [0, 5, -30], rot: [Math.PI / 8, 0, 0], size: [100, 2, 20], color: theme.seats })   // Front
-
-  if (theme.archType === 'bowl') {
-    // Open bowl: Add a continuous upper tier, no roof
-    blocks.push({ pos: [-55, 15, 10], rot: [0, 0, -Math.PI / 6], size: [20, 2, 140], color: theme.seats })
-    blocks.push({ pos: [55, 15, 10], rot: [0, 0, Math.PI / 6], size: [20, 2, 140], color: theme.seats })
-    blocks.push({ pos: [0, 15, 65], rot: [-Math.PI / 6, 0, 0], size: [130, 2, 20], color: theme.seats })
-    blocks.push({ pos: [0, 15, -45], rot: [Math.PI / 6, 0, 0], size: [130, 2, 20], color: theme.seats })
-  } else if (theme.archType === 'rectangular') {
-    // Steep rectangular: 3 distinct tiers, no continuous corners, large jumbotron
-    blocks.push({ pos: [-45, 18, 10], rot: [0, 0, -Math.PI / 4], size: [20, 2, 100], color: theme.seats })
-    blocks.push({ pos: [45, 18, 10], rot: [0, 0, Math.PI / 4], size: [20, 2, 100], color: theme.seats })
-    // Jumbotrons
-    blocks.push({ pos: [0, 25, 60], rot: [0, 0, 0], size: [30, 15, 2], color: '#111111' })
-    blocks.push({ pos: [0, 25, -40], rot: [0, 0, 0], size: [30, 15, 2], color: '#111111' })
-  } else if (theme.archType === 'canopy') {
-    // Canopy (SoFi style): massive roof covering everything
-    blocks.push({ pos: [-50, 15, 10], rot: [0, 0, -Math.PI / 5], size: [20, 2, 130], color: theme.seats })
-    blocks.push({ pos: [50, 15, 10], rot: [0, 0, Math.PI / 5], size: [20, 2, 130], color: theme.seats })
-
-    if (!hideRoof) {
-      // Massive curved roof (simulated with large thin blocks)
-      blocks.push({ pos: [0, 40, 10], rot: [0, 0, 0], size: [140, 2, 160], color: '#ffffff' }) // Main canopy
-      // Pillars
-      blocks.push({ pos: [-65, 20, 50], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
-      blocks.push({ pos: [65, 20, 50], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
-      blocks.push({ pos: [-65, 20, -30], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
-      blocks.push({ pos: [65, 20, -30], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
-
-      // Center hanging jumbotron (Oculus style)
-      blocks.push({ pos: [0, 25, 10], rot: [0, 0, 0], size: [20, 5, 20], color: '#111111' })
-    }
-  }
+  const primitives = getStadiumPrimitives(stadiumId, hideRoof)
 
   return (
     <group>
-      {primitives.map((p, i) => {
+      {primitives.map((p: any, i: number) => {
         if (p.type === 'cylinder') {
           return (
             <mesh key={i} position={new THREE.Vector3(...p.pos)} rotation={new THREE.Euler(...p.rot)} receiveShadow castShadow>
@@ -805,6 +773,56 @@ function extendTrajectoryWithPhysics(trajectory: TrajectoryPoint[]): TrajectoryP
   }
 
   return points
+}
+
+// ---------------------------------------------------------------
+// Birds
+// ---------------------------------------------------------------
+function Birds() {
+  const group = useRef<THREE.Group>(null!)
+  const numBirds = 20
+  
+  const birdsData = useMemo(() => {
+    return new Array(numBirds).fill(0).map(() => ({
+      x: (Math.random() - 0.5) * 300,
+      y: 60 + Math.random() * 60,
+      z: (Math.random() - 0.5) * 300,
+      speed: 0.5 + Math.random() * 1.5,
+      angle: Math.random() * Math.PI * 2,
+      radius: 30 + Math.random() * 100
+    }))
+  }, [])
+
+  useFrame((state) => {
+    if (group.current) {
+      group.current.children.forEach((bird, i) => {
+        const data = birdsData[i]
+        data.angle += (data.speed * 0.005)
+        
+        const newX = data.x + Math.cos(data.angle) * data.radius
+        const newZ = data.z + Math.sin(data.angle) * data.radius
+        
+        // Point the bird in the direction of movement
+        bird.lookAt(newX, bird.position.y, newZ)
+        
+        bird.position.x = newX
+        bird.position.z = newZ
+        bird.position.y = data.y + Math.sin(state.clock.elapsedTime * data.speed + i) * 3
+      })
+    }
+  })
+
+  return (
+    <group ref={group}>
+      {birdsData.map((_, i) => (
+        <mesh key={i}>
+          {/* A small flattened cone acts as a bird silhouette */}
+          <coneGeometry args={[0.6, 1.2, 3]} />
+          <meshBasicMaterial color="#ffffff" fog={true} />
+        </mesh>
+      ))}
+    </group>
+  )
 }
 
 function round3(value: number) {
