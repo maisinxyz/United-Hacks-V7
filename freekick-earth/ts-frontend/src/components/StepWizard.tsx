@@ -65,7 +65,7 @@ function getCameraConfig(step: number, bp: [number, number]): CameraConfig {
   const [bx, bz] = bp
   const configs: Record<number, CameraConfig> = {
     [-2]: { position: [0, 30, -50], target: [0, 5, 0] },
-    [-1]: { position: [0, 50, 0], target: [0, 0, 15] }, // Birds eye view
+    [-1]: { position: [0, 35, 0], target: [0, 0, 15] }, // Birds eye view, below canopy roof at y=40
     0: { position: [bx - 3, 0.8, bz - 2], target: [bx + 0.5, 0.11, bz + 1.5] },
     1: { position: [bx, 12, bz - 8], target: [bx, 0, (bz + 27) / 2] },
     2: { position: [bx - 15, 3, (bz + 27) / 2], target: [bx, 1, (bz + 27) / 2] },
@@ -272,6 +272,7 @@ export default function StepWizard() {
           stepIndex={step}
           config={config}
           instantCamera={step === -2 || step === -1 || step === 5}
+          restricted={step >= 0 && step <= 4}
           onTrajectoryComplete={() => setResultRevealed(true)}
           ballPosition={currentBallPos}
         />

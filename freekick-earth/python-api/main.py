@@ -28,25 +28,11 @@ from weather import (
 )
 
 # ---------------------------------------------------------------
-# Load the C++ physics engine
+# Load the Python physics engine
 # ---------------------------------------------------------------
-ENGINE_ROOT = Path(__file__).resolve().parent.parent / "cpp-engine" / "build"
-ENGINE_PATHS = [ENGINE_ROOT]
-RELEASE_ENGINE_PATH = ENGINE_ROOT / "Release"
-if RELEASE_ENGINE_PATH.exists():
-    ENGINE_PATHS.append(RELEASE_ENGINE_PATH)
+import physics as pe
 
-for engine_path in ENGINE_PATHS:
-    sys.path.insert(0, str(engine_path))
-
-try:
-    import physics_engine as pe  # type: ignore
-    ENGINE_AVAILABLE = True
-except ImportError:
-    ENGINE_AVAILABLE = False
-    checked_paths = ", ".join(str(p) for p in ENGINE_PATHS)
-    print(f"⚠️  C++ physics engine not found. Checked: {checked_paths}. "
-          "POST /simulate will be unavailable.")
+ENGINE_AVAILABLE = True
 
 # ---------------------------------------------------------------
 # Load stadium data
@@ -180,8 +166,10 @@ def _run_simulation(
     wind_speed: float,
     wind_dir_deg: float,
     gravity: float = 9.81,
+    ball_start_x: float = 0.0,
+    ball_start_z: float = 0.0,
 ) -> list[TrajectoryPoint]:
-    """Call the C++ engine and return a list of trajectory points."""
+    """Call the Python engine and return a list of trajectory points."""
     vx, vy, vz = _kick_to_velocity(power, h_angle, v_angle)
 
     kick = pe.KickParams()
@@ -204,7 +192,7 @@ def _run_simulation(
         wind_speed * math.cos(wind_rad),
     )
 
-    raw = pe.simulate_trajectory(kick, env)
+    raw = pe.simulate_trajectory(kick, env, ball_start_x=ball_start_x, ball_start_z=ball_start_z)
 
     return [
         TrajectoryPoint(
@@ -429,6 +417,8 @@ async def simulate(req: SimulateRequest):
         wind_speed=conditions.wind_speed_m_s,
         wind_dir_deg=conditions.wind_direction_deg,
         gravity=custom_gravity,
+        ball_start_x=bsx,
+        ball_start_z=bsz,
     )
 
     # --- Ghost trajectory (baseline: sea-level, 15°C, no wind) ---
@@ -442,16 +432,9 @@ async def simulate(req: SimulateRequest):
         wind_speed=0.0,
         wind_dir_deg=0.0,
         gravity=9.81,
+        ball_start_x=bsx,
+        ball_start_z=bsz,
     )
-
-    # Offset trajectory points by ball starting position
-    if bsx != 0.0 or bsz != 0.0:
-        for pt in actual:
-            pt.x = round(pt.x + bsx, 4)
-            pt.z = round(pt.z + bsz, 4)
-        for pt in ghost:
-            pt.x = round(pt.x + bsx, 4)
-            pt.z = round(pt.z + bsz, 4)
 
     result = _classify_result(actual)
 

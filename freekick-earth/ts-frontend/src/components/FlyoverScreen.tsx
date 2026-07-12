@@ -12,12 +12,16 @@ export default function FlyoverScreen({ stadiumName, location, conditions, onCom
   useEffect(() => {
     const timer = setTimeout(() => {
       onComplete()
-    }, 5000)
+    }, 10000)
     return () => clearTimeout(timer)
   }, [onComplete])
 
   return (
-    <div className="overlay-container" style={{ pointerEvents: 'none', justifyContent: 'center' }}>
+    <div 
+      className="overlay-container" 
+      style={{ pointerEvents: 'auto', justifyContent: 'center', cursor: 'pointer' }}
+      onClick={onComplete}
+    >
       {/* Center: Stadium Name and Location */}
       <div style={{ textAlign: 'center', animation: 'fadeIn 1s ease-out' }}>
         <h1 style={{ 
@@ -64,6 +68,21 @@ export default function FlyoverScreen({ stadiumName, location, conditions, onCom
           <Factor emoji="☁️" label="Air Density" value={`${conditions.air_density.toFixed(2)} kg/m³`} />
         </div>
       )}
+
+      {/* Bottom hint text */}
+      <div style={{
+        position: 'absolute',
+        bottom: '40px',
+        width: '100%',
+        textAlign: 'center',
+        animation: 'fadeIn 2s ease-in-out infinite alternate',
+        color: 'rgba(255, 255, 255, 0.6)',
+        fontSize: '1rem',
+        letterSpacing: '2px',
+        textTransform: 'uppercase'
+      }}>
+        Tap anywhere to continue
+      </div>
     </div>
   )
 }

@@ -29,6 +29,7 @@ interface Props {
   stepIndex: number
   config: KickConfig
   instantCamera?: boolean
+  restricted?: boolean
   onTrajectoryComplete?: () => void
   ballPosition?: [number, number]  // [x, z] offset for ball placement
 }
@@ -45,6 +46,7 @@ export default function PitchScene({
   stepIndex,
   config,
   instantCamera = false,
+  restricted = false,
   onTrajectoryComplete,
   ballPosition = [0, 0],
 }: Props) {
@@ -69,6 +71,7 @@ export default function PitchScene({
           triggerRecenter={triggerRecenter}
           trackBall={stepIndex === 5}
           ballRef={ballRef}
+          restricted={restricted}
         />
 
         <ambientLight intensity={0.6} />
@@ -85,7 +88,7 @@ export default function PitchScene({
         <fog attach="fog" args={['#87ceeb', 80, 300]} />
 
         <Pitch />
-        <ArenaEnvironment stadiumId={config.stadiumId} />
+        <ArenaEnvironment stadiumId={config.stadiumId} hideRoof={stepIndex < 0} />
         {stepIndex < 0 && <BCPlace />}
         {config.conditions && (
           <>
@@ -168,9 +171,9 @@ export default function PitchScene({
 }
 
 function CameraController({ 
-  position, target, instant = false, triggerRecenter = 0, trackBall = false, ballRef 
+  position, target, instant = false, triggerRecenter = 0, trackBall = false, ballRef, restricted = false
 }: { 
-  position: [number, number, number]; target: [number, number, number]; instant?: boolean; triggerRecenter?: number; trackBall?: boolean; ballRef?: React.MutableRefObject<THREE.Mesh> 
+  position: [number, number, number]; target: [number, number, number]; instant?: boolean; triggerRecenter?: number; trackBall?: boolean; ballRef?: React.MutableRefObject<THREE.Mesh>; restricted?: boolean
 }) {
   const controlsRef = useRef<any>(null)
   const currentTarget = useMemo(() => new THREE.Vector3(), [])
@@ -222,8 +225,20 @@ function CameraController({
       ref={controlsRef} 
       makeDefault 
       maxPolarAngle={Math.PI / 2 - 0.05} // Don't let camera go below ground
-      maxDistance={250}
+      minDistance={restricted ? 2 : 0}
+      maxDistance={restricted ? 25 : 250}
       dollySpeed={1.5}
+      mouseButtons={{
+        left: 1, // ACTION.ROTATE
+        middle: 8, // ACTION.DOLLY
+        right: restricted ? 0 : 2, // 2 is TRUCK, 0 is NONE
+        wheel: 8, // ACTION.DOLLY
+      }}
+      touches={{
+        one: 32, // ACTION.TOUCH_ROTATE
+        two: restricted ? 256 : 512, // 256 is TOUCH_DOLLY, 512 is TOUCH_DOLLY_TRUCK
+        three: restricted ? 0 : 64, // 64 is TOUCH_TRUCK, 0 is NONE
+      }}
     />
   )
 }
@@ -525,7 +540,7 @@ const STADIUM_THEMES: Record<string, { seats: string; archType: 'bowl' | 'canopy
   default: { seats: '#475569', archType: 'canopy' },
 }
 
-function ArenaEnvironment({ stadiumId }: { stadiumId: string }) {
+function ArenaEnvironment({ stadiumId, hideRoof = false }: { stadiumId: string; hideRoof?: boolean }) {
   const theme = STADIUM_THEMES[stadiumId] || STADIUM_THEMES.default
   
   const blocks = []
@@ -554,16 +569,18 @@ function ArenaEnvironment({ stadiumId }: { stadiumId: string }) {
     blocks.push({ pos: [-50, 15, 10], rot: [0, 0, -Math.PI / 5], size: [20, 2, 130], color: theme.seats })
     blocks.push({ pos: [50, 15, 10], rot: [0, 0, Math.PI / 5], size: [20, 2, 130], color: theme.seats })
     
-    // Massive curved roof (simulated with large thin blocks)
-    blocks.push({ pos: [0, 40, 10], rot: [0, 0, 0], size: [140, 2, 160], color: '#ffffff' }) // Main canopy
-    // Pillars
-    blocks.push({ pos: [-65, 20, 50], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
-    blocks.push({ pos: [65, 20, 50], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
-    blocks.push({ pos: [-65, 20, -30], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
-    blocks.push({ pos: [65, 20, -30], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
-    
-    // Center hanging jumbotron (Oculus style)
-    blocks.push({ pos: [0, 25, 10], rot: [0, 0, 0], size: [20, 5, 20], color: '#111111' })
+    if (!hideRoof) {
+      // Massive curved roof (simulated with large thin blocks)
+      blocks.push({ pos: [0, 40, 10], rot: [0, 0, 0], size: [140, 2, 160], color: '#ffffff' }) // Main canopy
+      // Pillars
+      blocks.push({ pos: [-65, 20, 50], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
+      blocks.push({ pos: [65, 20, 50], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
+      blocks.push({ pos: [-65, 20, -30], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
+      blocks.push({ pos: [65, 20, -30], rot: [0, 0, 0], size: [5, 40, 5], color: '#94a3b8' })
+      
+      // Center hanging jumbotron (Oculus style)
+      blocks.push({ pos: [0, 25, 10], rot: [0, 0, 0], size: [20, 5, 20], color: '#111111' })
+    }
   }
 
   return (
