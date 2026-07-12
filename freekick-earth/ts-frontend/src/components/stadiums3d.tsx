@@ -23,7 +23,7 @@ export type CylinderDescriptor = {
   type: 'cylinder'
   pos: [number, number, number]
   rot: [number, number, number]
-  args: [number, number, number, number]
+  args: any[]
   color: string
   opacity?: number
   isRoof?: boolean
@@ -46,7 +46,7 @@ function box(
 
 function cyl(
   pos: [number, number, number],
-  args: [number, number, number, number],
+  args: any[],
   color: string,
   rot: [number, number, number] = [0, 0, 0],
   opts: { opacity?: number; isRoof?: boolean } = {}
@@ -834,7 +834,7 @@ function akron(): StadiumPrimitive[] {
       return box([x, 30, z], [12, 0.8, 5], canopy, [0, angle, 0], { isRoof: true })
     }),
     // Volcanic rock base wall
-    cyl([0, 2, 13], [53, 56, 3.5, 24], '#57534e'),
+    cyl([0, 2, 13], [53, 56, 3.5, 24, 1, true], '#57534e'),
   ]
 }
 
